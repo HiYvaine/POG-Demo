@@ -44,7 +44,7 @@ class OpenShelf(Shape):
 
     @property
     def export_file_name(self):
-        return './pog_example/mesh/temp_open_shelf.obj'
+        return '/home/user/POG-Demo/pog_example/mesh/temp_open_shelf.obj'
 
     def create_aff(self, size):
         outer_params = {

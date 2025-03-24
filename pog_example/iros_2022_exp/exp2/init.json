@@ -180,7 +180,7 @@
             "radius": -1.0,
             "size": [],
             "height": -1.0,
-            "file_path": "./pog_example/mesh/cup/cup_t6.stl"
+            "file_path": "/home/user/POG-Demo/pog_example/mesh/cup/cup_t6.stl"
         },
         {
             "id": 6,
@@ -321,7 +321,7 @@
             "radius": -1.0,
             "size": [],
             "height": -1.0,
-            "file_path": "./pog_example/mesh/cup/cup_t8.stl"
+            "file_path": "/home/user/POG-Demo/pog_example/mesh/cup/cup_t8.stl"
         },
         {
             "id": 99,

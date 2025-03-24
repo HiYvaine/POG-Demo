@@ -55,7 +55,7 @@ class Cone(Shape):
 
     @property
     def export_file_name(self):
-        return './pog_example/mesh/temp_cone_{}_{}.obj'.format(
+        return '/home/user/POG-Demo/pog_example/mesh/temp_cone_{}_{}.obj'.format(
             self.radius, self.height)
 
     @property
