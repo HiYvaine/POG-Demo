@@ -130,3 +130,6 @@ pog/graph/kortex_description/
 pog/graph/robot_description/
 !pog_example/mesh
 !pog_example/iros_2022_exp/exp2/meshes/*
+
+# expriement result
+result/

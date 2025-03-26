@@ -8,6 +8,9 @@ FRICTION_ANGLE_THRESH = 0.1
 MAX_INITIAL_TRIES = 100
 TF_DIFF_THRESH = 0.01
 
+ROBOT_YML = "/home/user/POG-Demo/robot_description/mobile_franka_nofinger.yml"
+GRASP_POSE_DATASET = "/home/user/POG-Demo/grasp_pose.yml"
+
 # {support up: support down}
 PairedSurface = {
     "box_aff_pz": "box_aff_nz",

@@ -13,7 +13,7 @@ from networkx.drawing.nx_agraph import graphviz_layout
 from pog.graph import shape
 from pog.graph.edge import Edge
 from pog.graph.node import ContainmentState, Node
-from pog.graph.params import FRICTION_ANGLE_THRESH, PairedSurface
+from pog.graph.params import FRICTION_ANGLE_THRESH, PairedSurface, ROBOT_YML, GRASP_POSE_DATASET
 from pog.graph.shapes import Wardrobe, ComplexStorage, Cone, Drawer
 from pog.graph.utils import match
 from curobo.geom.types import Mesh
@@ -141,11 +141,11 @@ class Graph():
     
     def initIKConfig(self):
         if not self.ikcfg_initialized:
-            self.robot_cfg = load_yaml(f"/home/user/summit_franka/mobile_franka_nofinger.yml")["robot_cfg"]
+            self.robot_cfg = load_yaml(ROBOT_YML)["robot_cfg"]
             self.tensor_args = TensorDeviceType()
-            with open('/home/user/POG-Demo/grasp_pose.yml', 'r', encoding="utf-8") as file:
+            with open(GRASP_POSE_DATASET, 'r', encoding="utf-8") as file:
                 self.grasp_pose_data = yaml.safe_load(file)  
-                self.ikcfg_initialized = True
+            self.ikcfg_initialized = True
 
     def removeEdge(self, child_id):
         """remove an edge from edge list
@@ -787,7 +787,7 @@ class Graph():
                            If `get_succ_rate` is True, returns the success rate as a float.
         """
         if f"object_{object_id}" not in self.grasp_pose_data:
-            print(f"Grasp poses for object_{object_id} are not defined. Defaulting IK check to True.")
+            logging.info(f"Grasp poses for object_{object_id} are not defined. Defaulting IK check to True.")
             return True
 
         if ik_solver is None:
