@@ -16,6 +16,23 @@ from pog.graph.node import ContainmentState, Node
 from pog.graph.params import FRICTION_ANGLE_THRESH, PairedSurface
 from pog.graph.shapes import Wardrobe, ComplexStorage, Cone, Drawer
 from pog.graph.utils import match
+from curobo.geom.types import Mesh
+from scipy.spatial.transform import Rotation
+
+import torch
+from curobo.geom.types import WorldConfig
+from curobo.types.base import TensorDeviceType
+from curobo.types.math import Pose
+from curobo.util_file import load_yaml
+from curobo.wrap.reacher.ik_solver import IKSolver, IKSolverConfig
+torch.backends.cudnn.benchmark = True
+torch.backends.cuda.matmul.allow_tf32 = True
+torch.backends.cudnn.allow_tf32 = True
+from curobo.geom.sdf.world import CollisionCheckerType
+import yaml
+from scipy.spatial.transform import Rotation as R
+import re
+import numpy as np
 
 
 class Graph():
@@ -38,6 +55,11 @@ class Graph():
         self.graph = nx.DiGraph()
         self.robot = nx.DiGraph()
         self.robot_root = None
+
+        self.ikcfg_initialized = False
+        self.robot_cfg = None
+        self.tensor_args = None
+        self.grasp_pose_data = None
 
         if file_dir is None and fn is not None:
             self.node_dict, self.edge_dict, self.root = fn(**kwargs)
@@ -116,6 +138,14 @@ class Graph():
                                                        other.graph,
                                                        node_match=match,
                                                        edge_match=match)
+    
+    def initIKConfig(self):
+        if not self.ikcfg_initialized:
+            self.robot_cfg = load_yaml(f"/home/user/summit_franka/mobile_franka_nofinger.yml")["robot_cfg"]
+            self.tensor_args = TensorDeviceType()
+            with open('/home/user/POG-Demo/grasp_pose.yml', 'r', encoding="utf-8") as file:
+                self.grasp_pose_data = yaml.safe_load(file)  
+                self.ikcfg_initialized = True
 
     def removeEdge(self, child_id):
         """remove an edge from edge list
@@ -470,6 +500,48 @@ class Graph():
                         parent_node_name=self.edge_dict[key].parent_id,
                         transform=self.edge_dict[key].parent_to_child_tf)
 
+    @staticmethod
+    def transform_matrix_to_list(matrix: np.ndarray) -> list:
+        """
+        Convert a 4x4 transformation matrix to a list [x, y, z, qw, qx, qy, qz].
+        """
+        assert matrix.shape == (4, 4), "Input must be a 4x4 transformation matrix"
+        x, y, z = matrix[:3, 3]
+        rotation_matrix = matrix[:3, :3]
+        quaternion = Rotation.from_matrix(rotation_matrix).as_quat()
+        return [x, y, z, quaternion[3], quaternion[0], quaternion[1], quaternion[2]]
+
+    def genMeshList(self, exclude_object_ids = None):
+
+        """  Generate curobo-type Mesh list for obstacle representation. """
+
+        max_depth = len(nx.algorithms.dag_longest_path(self.graph))
+        node_depth = nx.shortest_path_length(self.graph, self.root)
+
+        mesh_list = []
+        self.computeGlobalTF()
+
+        for depth in range(1, max_depth):
+            for node in node_depth:
+                if node not in (exclude_object_ids or set()):
+                    if node_depth[node] == depth:
+                        node_mesh = self.node_dict[node].shape.shape.copy()
+                        # transform_pose = [0, 0, 0, 1, 0, 0, 0]
+                        transform_pose = self.transform_matrix_to_list(self.global_transform[node])
+
+                        mesh = Mesh(
+                            name=f"object_{node}",
+                            pose=transform_pose,
+                            vertices=node_mesh.vertices.tolist(),
+                            faces=node_mesh.faces.tolist()
+                        )
+                        mesh_list.append(mesh)
+        return mesh_list
+
+    def genWorldCfg(self, exclude_object_ids = None):
+        world_cfg = WorldConfig(mesh=self.genMeshList(exclude_object_ids))
+        return world_cfg
+
     def genMesh(self, outfile='out.stl'):
         """create mesh of scene graph and save it to a directory
 
@@ -623,4 +695,115 @@ class Graph():
                 stable = False
                 unstable_node.append(node_id)
         return (stable, unstable_node)
+
+    @staticmethod
+    def quaternion_multiply(q1, q2):
+
+        w1, x1, y1, z1 = q1.unbind(-1)
+        w2, x2, y2, z2 = q2.unbind(-1)
+        return torch.stack([
+            w1*w2 - x1*x2 - y1*y2 - z1*z2,
+            w1*x2 + x1*w2 + y1*z2 - z1*y2,
+            w1*y2 - x1*z2 + y1*w2 + z1*x2,
+            w1*z2 + x1*y2 - y1*x2 + z1*w2
+        ], dim=-1)   
+    
+    def CreateIKSolver(self, world_cfg = None):
+
+        self.initIKConfig()
+
+        if world_cfg is None:
+            world_cfg = WorldConfig(mesh=self.genMeshList())
+
+        ik_config = IKSolverConfig.load_from_robot_config(
+            self.robot_cfg,
+            world_cfg,
+            rotation_threshold=0.05,
+            position_threshold=0.01,
+            num_seeds=20,
+            self_collision_check=True,
+            self_collision_opt=True,
+            tensor_args=self.tensor_args,
+            use_cuda_graph=False,
+            collision_checker_type=CollisionCheckerType.MESH,
+            collision_cache={"mesh": 10},
+            # use_fixed_samples=True,
+        )
+        return IKSolver(ik_config)
+
+    def genGraspPoses(self, object_id, object_pose = None):
+        """
+        Generate grasp poses (relative to root frame) for object with id object_id
+
+        Args:
+            object_id (int): object id
+            object_pose (list, optional): object pose [x, y, z, qw, qx, qy, qz]. Defaults to None.
+
+        Returns: 
+            positions, quaternion  (torch.tensor)
+        """
+
+        if f"object_{object_id}" in self.grasp_pose_data:
+            grasp_poses = self.grasp_pose_data[f"object_{object_id}"]
+        else:
+            raise KeyError(f"Missing grasp pose data for object_{object_id}")
+
+        if object_pose is None:
+            self.computeGlobalTF()
+            object_pose = self.transform_matrix_to_list(self.global_transform[object_id])
+
+        positions = [torch.tensor(pose['position'], dtype=torch.float32, device="cuda:0")
+                    for pose in grasp_poses]
+        orientations = [torch.tensor(pose['orientation'], dtype=torch.float32, device="cuda:0")
+                        for pose in grasp_poses]
+
+        pose_positions = torch.stack(positions)
+        pose_orientations = torch.stack(orientations)
+
+        T_position = torch.tensor(object_pose[:3], dtype=torch.float32, device="cuda:0")
+        T_quaternion = torch.tensor(object_pose[3:], dtype=torch.float32, device="cuda:0")
+
+        T_rotation = R.from_quat(np.array(object_pose[3:]), scalar_first=True).as_matrix()
+        T_rotation = torch.tensor(T_rotation, dtype=torch.float32, device="cuda:0")
+
+        rotated_positions = pose_positions @ T_rotation.T
+        new_positions = rotated_positions + T_position
+        new_quaternions = self.quaternion_multiply(T_quaternion.unsqueeze(0), pose_orientations)   
+
+        return new_positions, new_quaternions  
+
+    def checkIK(self, object_id, ik_solver=None, object_pose=None, get_succ_rate=False):
+        """
+        Check if the grasp poses for a given object are collision-aware feasible.
+
+        Args:
+            object_id (int): The ID of the object to check.
+            ik_solver (IKSolver, optional): The IK solver instance. Defaults to None.
+            object_pose (list, optional): The pose of the object [x, y, z, qw, qx, qy, qz]. Defaults to None.
+            get_succ_rate (bool, optional): Whether to return the success rate of IK solutions. Defaults to False.
+
+        Returns:
+            bool or float: If `get_succ_rate` is False, returns True if at least one IK solution exists. 
+                           If `get_succ_rate` is True, returns the success rate as a float.
+        """
+        if f"object_{object_id}" not in self.grasp_pose_data:
+            print(f"Grasp poses for object_{object_id} are not defined. Defaulting IK check to True.")
+            return True
+
+        if ik_solver is None:
+            ik_solver = self.CreateIKSolver()
+
+        positions, quaternions = self.genGraspPoses(object_id, object_pose)
+
+        if get_succ_rate:
+            goal = Pose(positions, quaternions)
+            result = ik_solver.solve_batch(goal)
+            torch.cuda.synchronize()
+            success_rate = torch.count_nonzero(result.success).item() / len(goal)
+            return success_rate
+        else:
+            goal = Pose(positions.unsqueeze(0), quaternions.unsqueeze(0))
+            result = ik_solver.solve_goalset(goal)
+            torch.cuda.synchronize()
+            return torch.any(result.success).item()
 

@@ -33,12 +33,15 @@ def gradient_descent(
     best_eval, step_direction = objective[0](best, object_pose_dict, sg)
     # current working solution
     curr, curr_eval = best, best_eval
-
+    # Remove the pose-optimizing object from worldcfg to reduce IK request frequency
+    worldcfg = sg.genWorldCfg(exclude_object_ids={node_id[0]})
+    ik_solver = sg.CreateIKSolver(worldcfg)
     # run the algorithm
     i = 0
     best_eval_arr = []
     history = []
     t = 1
+    skip_candidates = 0
     while i < MAX_ITER:
         i += 1
         # take a step
@@ -62,6 +65,15 @@ def gradient_descent(
 
         # check for new best solution
         if candidate_eval < best_eval:
+
+            # TODO: what if all candidates have no valid IK solution?
+            # skip if the candidate has no valid IK solution
+            object_pose = sg.transform_matrix_to_list(sg.global_transform[node_id[0]])
+            ik_result = sg.checkIK(object_id=node_id[0], ik_solver=ik_solver, object_pose=object_pose)
+            if not ik_result:
+                skip_candidates += 1
+                continue
+            
             # store new best point
             best, best_eval = candidate, candidate_eval
             # report progress
@@ -80,4 +92,7 @@ def gradient_descent(
             curr, curr_eval = candidate, candidate_eval
             step_direction = temp_step_direction
 
+    if verbose:
+        print(f"Object {node_id[0]}: skip {skip_candidates} candidate poses due to IK failure.")
+        
     return best, best_eval
