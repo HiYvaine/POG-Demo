@@ -10,6 +10,7 @@ from pog.graph import shape, node, edge
 from pog.planning.planner import test, Searcher
 from pog.planning.problem import PlanningOnGraphProblem
 from pog.planning.utils import *
+from pog.algorithm.params import CHECK_COLLISION_IK
 
 COLORS = {
     "light grey": [0.76470588, 0.76470588, 0.76470588, 1.],
@@ -115,7 +116,7 @@ if __name__ == '__main__':
                         action='store_true',
                         help='Enable the viewer and visualizes the plan')
     args = parser.parse_args()
-    print('Arguments:', args)
+    print("\033[93m", 'Arguments:', args, f"CHECK_COLLISION_IK: {CHECK_COLLISION_IK}" ,"\033[0m")
 
     assert args.n >= 1 and args.n <= 10
 

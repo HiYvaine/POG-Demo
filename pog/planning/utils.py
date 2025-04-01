@@ -5,7 +5,8 @@ from pog.graph.params import PairedSurface
 from pog.graph.shape import AffordanceType
 from pog.graph.node import ContainmentState
 from pog.planning.planner import PlanningOnGraphPath
-from pog.planning.action import Action, updateGraph 
+from pog.planning.action import Action, updateGraph, ActionType
+import time
 
 import vedo
 import networkx as nx
@@ -70,7 +71,6 @@ def apply_action_sequence_to_graph(init : Graph, goal : Graph, action_sequence :
     for action in action_sequence:
         if save_step:
             current.toJson(file_dir="result/", file_name="{}.json".format(idx))
-            idx += 1
         if action and action.reverse:
             updateGraph(current, init, [action], optimize=True)
         else:
@@ -78,12 +78,12 @@ def apply_action_sequence_to_graph(init : Graph, goal : Graph, action_sequence :
         is_collision, names = current.collision_manager.in_collision_internal(return_names=True)
         print(action, current.checkStability(), (is_collision, names))
         success = success and (current.checkStability() and not is_collision)
-        if visualize:
+        if visualize and action and action.action_type == ActionType.Place:
             current.create_scene()
-            if action:
-                vedo.show(current.scene.dump(concatenate=True), axes=0, resetcam=False, interactive=False)
-            else:
-                vedo.show(current.scene.dump(concatenate=True), axes=0,camera={'pos':(0,-3,3),}, size=(2000,2000), new=True, azimuth=0, elevation=-45, roll=0)
-            input('Press [Enter] to continue.')
-
+            plt = vedo.Plotter()
+            plt.show(current.scene.dump(concatenate=True), axes=0, resetcam=True, interactive=False, title="Action_{} : {}".format(idx, action))
+            plt.render()
+            time.sleep(3)
+        idx += 1
+    input("Press Enter to close all display windows...")
     return current, success

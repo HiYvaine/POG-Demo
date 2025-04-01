@@ -4,10 +4,8 @@ from numpy.random import rand, randn
 from pog.algorithm.utils import *
 from pog.graph.graph import Graph
 
-from pog.algorithm.params import STEP_SIZE, MAX_ITER, EPS_THRESH, TEMP_COEFF, NUM_CYCLES_EPS
+from pog.algorithm.params import STEP_SIZE, MAX_ITER, EPS_THRESH, TEMP_COEFF, NUM_CYCLES_EPS, CHECK_COLLISION_IK
 
-
-# simulated annealing algorithm
 def gradient_descent(
     objective,
     sg: Graph,
@@ -34,8 +32,9 @@ def gradient_descent(
     # current working solution
     curr, curr_eval = best, best_eval
     # Remove the pose-optimizing object from worldcfg to reduce IK request frequency
-    worldcfg = sg.genWorldCfg(exclude_object_ids={node_id[0]})
-    ik_solver = sg.CreateIKSolver(worldcfg)
+    if CHECK_COLLISION_IK:
+        worldcfg = sg.genWorldCfg(exclude_object_ids={node_id[0]})
+        ik_solver = sg.CreateIKSolver(worldcfg)
     # run the algorithm
     i = 0
     best_eval_arr = []
@@ -67,12 +66,13 @@ def gradient_descent(
         if candidate_eval < best_eval:
 
             # TODO: what if all candidates have no valid IK solution?
-            # skip if the candidate has no valid IK solution
-            object_pose = sg.transform_matrix_to_list(sg.global_transform[node_id[0]])
-            ik_result = sg.checkIK(object_id=node_id[0], ik_solver=ik_solver, object_pose=object_pose)
-            if not ik_result:
-                skip_candidates += 1
-                continue
+            if CHECK_COLLISION_IK:
+                # skip if the candidate has no valid IK solution
+                object_pose = sg.transform_matrix_to_list(sg.global_transform[node_id[0]])
+                ik_result = sg.checkIK(object_id=node_id[0], ik_solver=ik_solver, object_pose=object_pose)
+                if not ik_result:
+                    skip_candidates += 1
+                    continue
             
             # store new best point
             best, best_eval = candidate, candidate_eval
@@ -92,7 +92,6 @@ def gradient_descent(
             curr, curr_eval = candidate, candidate_eval
             step_direction = temp_step_direction
 
-    if verbose:
-        print(f"Object {node_id[0]}: skip {skip_candidates} candidate poses due to IK failure.")
-        
+    if skip_candidates > 0:
+        print(f"(skip {skip_candidates} candidate poses for object_{node_id[0]} due to IK failure)")
     return best, best_eval

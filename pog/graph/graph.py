@@ -145,6 +145,7 @@ class Graph():
             self.tensor_args = TensorDeviceType()
             with open(GRASP_POSE_DATASET, 'r', encoding="utf-8") as file:
                 self.grasp_pose_data = yaml.safe_load(file)  
+            logging.getLogger("curobo").setLevel(logging.WARNING)
             self.ikcfg_initialized = True
 
     def removeEdge(self, child_id):

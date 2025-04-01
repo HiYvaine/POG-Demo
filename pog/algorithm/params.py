@@ -30,3 +30,6 @@ SINGLE_AREA_RATIO_MARGIN = 0.1
 FITNESS_THRESH = 0.5
 
 TOURNAMENT_K = 10
+
+# Flag for checking collision-aware IK
+CHECK_COLLISION_IK = False

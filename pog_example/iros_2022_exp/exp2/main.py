@@ -3,6 +3,7 @@ from pog.graph.graph import Graph
 from pog.planning.planner import test, Searcher
 from pog.planning.problem import PlanningOnGraphProblem
 from pog.planning.utils import *
+from pog.algorithm.params import CHECK_COLLISION_IK
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -10,7 +11,7 @@ if __name__ == '__main__':
                         action='store_true',
                         help='Enable the viewer and visualizes the plan')
     args = parser.parse_args()
-    print('Arguments:', args)
+    print("\033[93m", 'Arguments:', args, f"CHECK_COLLISION_IK: {CHECK_COLLISION_IK}" ,"\033[0m")
 
     logFormatter = logging.Formatter(
         "%(asctime)s [%(filename)s:%(lineno)s] [%(levelname)-5.5s]  %(message)s"
