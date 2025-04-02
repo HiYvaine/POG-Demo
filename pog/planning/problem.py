@@ -151,13 +151,8 @@ class PlanningOnGraphProblem(Search_problem):
                     _, names = current.collision_manager.in_collision_internal(
                         return_names=True)
                     is_collision = False
-                    collide_items = []
                     for pair in names:
-                        if str(new_action.add_edge[1]) == pair[0]:
-                            collide_items.append(int(pair[1]))
-                            is_collision = True
-                        elif str(new_action.add_edge[1]) == pair[1]:
-                            collide_items.append(int(pair[0]))
+                        if str(new_action.add_edge[1]) in set(pair):
                             is_collision = True
                         else:
                             continue

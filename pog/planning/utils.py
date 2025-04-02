@@ -10,6 +10,7 @@ import time
 
 import vedo
 import networkx as nx
+from collections import deque
 
 def operation_picknplace(node, source_object, target_object): # for foward astar search
     if not node.node_dict[source_object].accessible:
@@ -62,7 +63,9 @@ def path_to_action_sequence(path : PlanningOnGraphPath):
     action_sequence = []
     for node in path.nodes():
         action_sequence.append(node.action)
-    return reversed(action_sequence)
+    action_seq = reversed(action_sequence)
+    new_action_seq = remove_prev_curr(deque(action_seq), checkRedundant)
+    return deque(new_action_seq)
 
 def apply_action_sequence_to_graph(init : Graph, goal : Graph, action_sequence : List[Action], visualize=False, save_step=False):
     current = init.copy()
@@ -87,3 +90,30 @@ def apply_action_sequence_to_graph(init : Graph, goal : Graph, action_sequence :
         idx += 1
     input("Press Enter to close all display windows...")
     return current, success
+
+def checkRedundant(prev: Action, curr: Action):
+    if prev and curr:
+        if prev.action_type == ActionType.Pick and curr.action_type == ActionType.Place:
+            if prev.del_edge[1] == curr.add_edge[1] and prev.del_edge[0] == curr.add_edge[0]:
+                if curr.optimized == False:
+                    print(f"Remove redundant operations: [{prev}] and [{curr}]")
+                    return True
+    return False
+
+def remove_prev_curr(iterator, condition):
+    prev = None
+    skip_prev = False 
+    for curr in iterator:
+        if skip_prev:
+            skip_prev = False 
+            prev = curr 
+            continue
+        if condition(prev, curr): 
+            skip_prev = True  
+            prev = None 
+            continue  
+        if prev is not None:
+            yield prev  
+        prev = curr  
+    if not skip_prev and prev is not None:
+        yield prev
