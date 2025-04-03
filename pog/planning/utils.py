@@ -84,11 +84,11 @@ def apply_action_sequence_to_graph(init : Graph, goal : Graph, action_sequence :
         if visualize and action and action.action_type == ActionType.Place:
             current.create_scene()
             plt = vedo.Plotter()
-            plt.show(current.scene.dump(concatenate=True), axes=0, resetcam=True, interactive=False, title="Action_{} : {}".format(idx, action))
+            plt.show(current.scene.dump(concatenate=True), axes=0, resetcam=True, interactive=True, title="Action_{} : {}".format(idx, action))
+            # to ensure the window title refreshes
             plt.render()
-            time.sleep(3)
+            print("Press Esc to close display window and continue...")
         idx += 1
-    input("Press Enter to close all display windows...")
     return current, success
 
 def checkRedundant(prev: Action, curr: Action):
