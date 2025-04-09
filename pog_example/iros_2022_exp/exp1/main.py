@@ -115,6 +115,11 @@ if __name__ == '__main__':
     parser.add_argument('-viewer',
                         action='store_true',
                         help='Enable the viewer and visualizes the plan')
+    
+    parser.add_argument('-filter',
+                        action='store_true',
+                        help='Enable to filter redundant actions during searching')
+    
     args = parser.parse_args()
     print("\033[93m", 'Arguments:', args, f"CHECK_COLLISION_IK: {CHECK_COLLISION_IK}" ,"\033[0m")
 
@@ -172,10 +177,12 @@ if __name__ == '__main__':
     g_goal.create_scene()
 
     start = time.time()
-    path = test(Searcher,
-                problem=PlanningOnGraphProblem(g_start,
-                                               g_goal,
-                                               parking_place=0))
+    ites, path = test(Searcher,
+                    problem=PlanningOnGraphProblem(g_start,
+                                                   g_goal,
+                                                   parking_place=0),
+                                                   pruning=args.filter)
+    
     end = time.time()
     print("Planning finished in time: {}".format(end - start))
 

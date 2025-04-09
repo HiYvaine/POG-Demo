@@ -3,6 +3,8 @@ import logging, heapq
 
 from pog.planning.problem import PlanningOnGraphPath, PlanningOnGraphProblem
 from pog.planning.utils import *
+import copy
+import time
 
 
 class Searcher():
@@ -28,26 +30,58 @@ class Searcher():
     def add_to_frontier(self, path):
         self.frontier.append(path)
 
-    def search(self):
+    def search(self, pruning, max_iter, max_opt_time):
         """returns (next) path from the problem's start node
         to a goal node. 
         Returns None if no path exists.
+        args:
+            pruning: if True, prune redundant actions
+            max_iter: maximum number of iterations
+            max_opt_time: maximum time for optimization
         """
+        solution_found = False
+        iter = 0
+        solutions = []
+        start_time = 0.
+        best_cost = 0.
+
         while not self.empty_frontier():
+
+            if solution_found: 
+                if iter > max_iter or time.time() - start_time > max_opt_time:
+                    best_solution = solutions.pop()
+                    self.solution = best_solution
+                    del solutions
+                    return iter, best_solution
             path = self.frontier.pop()
+            
             logging.debug("Expanding: {} (cost: {})".format(path, path.cost))
             self.num_expanded += 1
+
             if self.problem.is_goal(path.end()):  # solution found
                 logging.info(
                     "{} paths have been expanded and {} paths remain in the frontier."
                     .format(self.num_expanded, len(self.frontier)))
-                self.solution = path  # store the solution found
-                return path
+                
+                if not solution_found:
+                    start_time = time.time()
+                    print("\033[93mFound a solution with cost {}.\033[0m".format(path.cost))
+                    solution_found = True
+                else:
+                    print("\033[93mFound a better solution with cost {}.\033[0m".format(path.cost))
+
+                solutions.append(path)
+                best_cost = path.cost
+                iter += 1
+
             else:
                 neighs = self.problem.neighbors(path.end())
                 logging.debug("Expanded {} neighbors.".format(len(neighs)))
-                for arc in reversed(list(neighs)):
-                    self.add_to_frontier(PlanningOnGraphPath(path, arc))
+                if not solution_found or path.cost < best_cost - 1:
+                    for arc in reversed(list(neighs)):
+                        if pruning and path.end().action and checkRedundant(path.end().action, arc.action):
+                            continue
+                        self.add_to_frontier(PlanningOnGraphPath(path, arc))
         logging.info("No (more) solutions. Total of {} paths expanded.".format(
             self.num_expanded))
 
@@ -121,7 +155,7 @@ class AStarSearcher(Searcher):
         self.frontier.add(path, value)
 
 
-def test(SearchClass, problem: PlanningOnGraphProblem):
+def test(SearchClass, problem: PlanningOnGraphProblem, pruning=True, max_iter=0, max_opt_time=1000):
     """Unit test for aipython searching algorithms.
     SearchClass is a class that takes a problemm and implements search()
     problem is a search problem
@@ -129,8 +163,8 @@ def test(SearchClass, problem: PlanningOnGraphProblem):
     """
     logging.info("test: Testing problem 1:")
     schr1 = SearchClass(problem)
-    path1 = schr1.search()
+    ites, path1 = schr1.search(pruning, max_iter, max_opt_time)
     logging.info("test: Path found: {}".format(path1))
     assert path1 is not None, "No path is found in problem1"
     logging.info("test: Passed unit test")
-    return path1
+    return ites, path1

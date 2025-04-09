@@ -6,7 +6,7 @@ from pog.graph.shape import AffordanceType
 from pog.graph.node import ContainmentState
 from pog.planning.planner import PlanningOnGraphPath
 from pog.planning.action import Action, updateGraph, ActionType
-import time
+import logging
 
 import vedo
 import networkx as nx
@@ -59,13 +59,16 @@ def operation_picknplace(node, source_object, target_object): # for foward astar
                 return new_node_lists    
 
 
-def path_to_action_sequence(path : PlanningOnGraphPath):
+def path_to_action_sequence(path : PlanningOnGraphPath, pruning=False):
     action_sequence = []
     for node in path.nodes():
         action_sequence.append(node.action)
     action_seq = reversed(action_sequence)
-    new_action_seq = remove_prev_curr(deque(action_seq), checkRedundant)
-    return deque(new_action_seq)
+    if pruning:
+        new_action_seq = remove_prev_curr(deque(action_seq), checkRedundant)
+        return deque(new_action_seq)
+    # TODO: remove first None element
+    return deque(action_seq)
 
 def apply_action_sequence_to_graph(init : Graph, goal : Graph, action_sequence : List[Action], visualize=False, save_step=False):
     current = init.copy()
@@ -96,7 +99,7 @@ def checkRedundant(prev: Action, curr: Action):
         if prev.action_type == ActionType.Pick and curr.action_type == ActionType.Place:
             if prev.del_edge[1] == curr.add_edge[1] and prev.del_edge[0] == curr.add_edge[0]:
                 if curr.optimized == False:
-                    print(f"Remove redundant operations: [{prev}] and [{curr}]")
+                    logging.info(f"Redundant actions: [{prev}] and [{curr}]")
                     return True
     return False
 
