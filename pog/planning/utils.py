@@ -84,7 +84,7 @@ def apply_action_sequence_to_graph(init : Graph, goal : Graph, action_sequence :
         is_collision, names = current.collision_manager.in_collision_internal(return_names=True)
         print(action, current.checkStability(), (is_collision, names))
         success = success and (current.checkStability() and not is_collision)
-        if visualize and action and action.action_type == ActionType.Place:
+        if visualize and action and action.action_type != ActionType.Pick:
             current.create_scene()
             plt = vedo.Plotter()
             plt.show(current.scene.dump(concatenate=True), axes=0, resetcam=True, interactive=True, title="Action_{} : {}".format(idx, action))

@@ -53,8 +53,8 @@ class Searcher():
                     self.solution = best_solution
                     del solutions
                     return iter, best_solution
+                
             path = self.frontier.pop()
-            
             logging.debug("Expanding: {} (cost: {})".format(path, path.cost))
             self.num_expanded += 1
 
@@ -65,10 +65,10 @@ class Searcher():
                 
                 if not solution_found:
                     start_time = time.time()
-                    print("\033[93mFound a solution with cost {}.\033[0m".format(path.cost))
+                    logging.info("Found a solution with cost {}.".format(path.cost))
                     solution_found = True
                 else:
-                    print("\033[93mFound a better solution with cost {}.\033[0m".format(path.cost))
+                    logging.info("Found a better solution with cost {}.".format(path.cost))
 
                 solutions.append(path)
                 best_cost = path.cost

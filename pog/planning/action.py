@@ -12,6 +12,7 @@ from pog.planning.params import MAX_UPDATE_ITER
 
 import logging
 import networkx as nx
+from pog.graph.shape import ShapeID
 
 
 class ActionType(Enum):
@@ -43,6 +44,7 @@ class Action():
         self.add_edge = edge_edit_pair[1]
         self.optimized = optimized
         self.reverse = False
+        self.nece = False
 
     def __eq__(self, other) -> bool:
         return hasattr(other, 'action_type') and hasattr(other, 'agent') and \
@@ -126,11 +128,22 @@ def updateGraph(current: Graph,
                             random_start=True)
 
         elif action.action_type == ActionType.Open:
-            current.node_dict[
-                action.del_edge[0]].State = ContainmentState.Opened
+            node = current.node_dict[action.del_edge[0]]
+            node.State = ContainmentState.Opened
+            if node.shape.shape_type == ShapeID.Drawer:
+                pose = current.getPose(edge_id=[action.del_edge[0]])
+                pose[action.del_edge[0]]['pose'][1] = 0.5
+                current.setPose(pose)
+
+
         elif action.action_type == ActionType.Close:
-            current.node_dict[
-                action.del_edge[0]].State = ContainmentState.Closed
+            node = current.node_dict[action.del_edge[0]]
+            node.State = ContainmentState.Closed
+            if node.shape.shape_type == ShapeID.Drawer:
+                pose = current.getPose(edge_id=[action.del_edge[0]])
+                pose[action.del_edge[0]]['pose'][1] = 0.05
+                current.setPose(pose)
+
         elif action.action_type == ActionType.PicknPlace:
             if action.optimized:
                 # current.removeEdge(action.del_edge[1])

@@ -16,7 +16,7 @@ if __name__ == '__main__':
                         help='Enable the viewer and visualizes the plan')
     parser.add_argument('--max_iter',
                         type=int,
-                        default=1,
+                        default=0,
                         help='Maximum number of iterations for the planner')
     parser.add_argument('--max_opt_time',
                         type=int,
@@ -63,9 +63,13 @@ if __name__ == '__main__':
     
     # Environment(g_goal)
     start_time = time.time()
-    ites, path = test(Searcher, problem=PlanningOnGraphProblem(g_start, g_goal, parking_place=99), pruning=True, max_iter=args.max_iter, max_opt_time=args.max_opt_time)
+    ites, path = test(Searcher, 
+                      problem=PlanningOnGraphProblem(g_start, g_goal, parking_place=99), 
+                      pruning=True, 
+                      max_iter=args.max_iter, 
+                      max_opt_time=args.max_opt_time)
     
-    action_seq = path_to_action_sequence(path, removeRedundant=False)            
+    action_seq = path_to_action_sequence(path, pruning=True)            
     apply_action_sequence_to_graph(g_start, g_goal, action_seq, visualize=args.viewer)
 
     experiment_time = time.time() - start_time
@@ -79,8 +83,6 @@ if __name__ == '__main__':
           "Path length: {};".format(experiment_path_length),
           "Iterations: {}.\033[0m".format(ites))
 
-    np.save(data_file, np.array([total_time, total_path_length, total_experiments]))
-
     experiment_data = np.array([total_experiments, experiment_time, experiment_path_length, ites])
 
     if os.path.exists(log_file):
@@ -89,7 +91,8 @@ if __name__ == '__main__':
     else:
         updated_data = np.array([experiment_data])
 
-    np.save(log_file, updated_data)
+    # np.save(log_file, updated_data)
+    # np.save(data_file, np.array([total_time, total_path_length, total_experiments]))
 
     print(updated_data)
     print(f"\033[93mExps: {total_experiments};",
