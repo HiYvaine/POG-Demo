@@ -14,6 +14,9 @@ if __name__ == '__main__':
     parser.add_argument('-viewer',
                         action='store_true',
                         help='Enable the viewer and visualizes the plan')
+    parser.add_argument('-filter',
+                        action='store_true',
+                        help='Enable to filter redundant actions during searching')
     parser.add_argument('--max_iter',
                         type=int,
                         default=0,
@@ -48,14 +51,6 @@ if __name__ == '__main__':
     rootLogger.addHandler(consoleHandler)
 
     rootLogger.setLevel(logging.INFO)
-        
-    if os.path.exists(data_file):
-        data = np.load(data_file)
-        total_time, total_path_length, total_experiments = data
-    else:
-        total_time = 0
-        total_path_length = 0
-        total_experiments = 0
 
     # Planning
     g_start = Graph('exp2-init', file_dir='pog_example/iros_2022_exp/exp2/', file_name='init.json')
@@ -65,36 +60,16 @@ if __name__ == '__main__':
     start_time = time.time()
     ites, path = test(Searcher, 
                       problem=PlanningOnGraphProblem(g_start, g_goal, parking_place=99), 
-                      pruning=True, 
+                      pruning=args.filter, 
                       max_iter=args.max_iter, 
                       max_opt_time=args.max_opt_time)
     
-    action_seq = path_to_action_sequence(path, pruning=True)            
+    action_seq = path_to_action_sequence(path)            
     apply_action_sequence_to_graph(g_start, g_goal, action_seq, visualize=args.viewer)
 
     experiment_time = time.time() - start_time
     experiment_path_length = len(action_seq) - 1
 
-    total_time += experiment_time
-    total_path_length += experiment_path_length
-    total_experiments += 1
-
     print("\033[93mSearch time: {:.2f} seconds;".format(experiment_time),
           "Path length: {};".format(experiment_path_length),
           "Iterations: {}.\033[0m".format(ites))
-
-    experiment_data = np.array([total_experiments, experiment_time, experiment_path_length, ites])
-
-    if os.path.exists(log_file):
-        existing_data = np.load(log_file, allow_pickle=True)
-        updated_data = np.vstack([existing_data, experiment_data])
-    else:
-        updated_data = np.array([experiment_data])
-
-    # np.save(log_file, updated_data)
-    # np.save(data_file, np.array([total_time, total_path_length, total_experiments]))
-
-    print(updated_data)
-    print(f"\033[93mExps: {total_experiments};",
-        "Ave time: {:.2f} seconds;".format(total_time/total_experiments),
-        "Ave length: {}.\033[0m".format(total_path_length/total_experiments))
