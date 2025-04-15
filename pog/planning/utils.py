@@ -7,6 +7,7 @@ from pog.graph.node import ContainmentState
 from pog.planning.planner import PlanningOnGraphPath
 from pog.planning.action import Action, updateGraph, ActionType
 import logging
+from pog.planning.searchNode import SearchNode
 
 import vedo
 import networkx as nx
@@ -94,7 +95,22 @@ def apply_action_sequence_to_graph(init : Graph, goal : Graph, action_sequence :
         idx += 1
     return current, success
 
-def checkRedundant(prev: Action, curr: Action):
+def checkRedundant(prev: Action, curr: Action, node: SearchNode):
+    if prev and curr:
+        if prev.action_type == ActionType.Pick and curr.action_type == ActionType.Place:
+            if prev.del_edge[1] == curr.add_edge[1] and prev.del_edge[0] == curr.add_edge[0]:
+                if curr.optimized == False:
+                    current = node.current.copy()
+                    before_child_aff = current.edge_dict[prev.del_edge[1]].relations[
+                                        AffordanceType.Support]['child'].name
+                    after_child_aff = node.goal.edge_dict[curr.add_edge[1]].relations[
+                                        AffordanceType.Support]['child'].name
+                    if before_child_aff == after_child_aff:
+                        logging.info(f"Redundant actions: [{prev}] and [{curr}]")
+                        return True
+    return False
+
+def checkRedundantLegacy(prev: Action, curr: Action):
     if prev and curr:
         if prev.action_type == ActionType.Pick and curr.action_type == ActionType.Place:
             if prev.del_edge[1] == curr.add_edge[1] and prev.del_edge[0] == curr.add_edge[0]:

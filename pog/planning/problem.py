@@ -108,8 +108,7 @@ class PlanningOnGraphProblem(Search_problem):
                             new_action_seq.remove(del_succ)
                             constraints.delConstraint(del_succ)
                             for action in new_action_seq:
-                                if action.action_type == ActionType.Place and action.add_edge[
-                                        1] == succ:
+                                if action.action_type == ActionType.Place and action.add_edge[1] == succ:
                                     add_succ = action
                                     break
                             to_ground = Action(
