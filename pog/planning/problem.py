@@ -3,7 +3,7 @@ from pog.graph.graph import Graph
 from pog.planning.searchProblem import Search_problem, Path
 from pog.planning.searchNode import SearchNode
 from pog.planning.action import Action, ActionType, action_seq_generator, updateGraph
-
+from pog.graph.shape import ShapeID
 import copy
 
 
@@ -74,8 +74,48 @@ class PlanningOnGraphProblem(Search_problem):
         for neighbor in node.selectAction():
             (new_action_seq, constraints, new_action) = neighbor
             current = node.current.copy()
-
             updateGraph(current, self.goal_graph, [new_action])
+
+            if new_action.action_type == ActionType.Open or new_action.action_type == ActionType.Close:
+                obj_type = current.node_dict[new_action.del_edge[0]].shape.shape_type
+
+                if obj_type == ShapeID.Drawer and not new_action.path_clear:
+                    is_collision, names = current.collision_manager.in_collision_internal(return_names=True)
+                    colliding_objects = []
+                    for pair in names:
+                        if str(new_action.del_edge[0]) in set(pair):
+                            other_object = pair[0] if pair[1] == str(new_action.del_edge[0]) else pair[1]
+                            colliding_objects.append(int(other_object))
+                        else:
+                            continue
+                    # TODO: remove的object不一定在parking_place上, 以及没有考虑堆叠在一起的物体
+                    if is_collision:
+
+                        new_action.path_clear = True
+                        new_action_seq.extend([new_action])
+
+                        for obj in colliding_objects:
+
+                            clear_pick = Action(((self.parking_place, obj), None), 
+                                                action_type=ActionType.Pick) 
+
+                            clear_place = Action((None, (self.parking_place, obj)),
+                                                action_type=ActionType.Place,
+                                                optimized=False,
+                                                skip_pruning=True)
+
+                            new_action_seq.extend([clear_place])
+
+                            current = node.current.copy()
+                            updateGraph(current, self.goal_graph, [clear_pick])
+
+                            to_node = SearchNode(new_action_seq, constraints, clear_pick,
+                                                current, self.goal_graph)
+                            neighbors.append(Arc(node, to_node))
+
+                        continue
+
+
             if new_action.action_type == ActionType.Place or new_action.action_type == ActionType.PicknPlace:
                 (is_stable, unstable_nodes) = current.checkStability()
 
@@ -151,7 +191,7 @@ class PlanningOnGraphProblem(Search_problem):
                         return_names=True)
                     is_collision = False
                     for pair in names:
-                        if str(new_action.add_edge[1]) in set(pair):
+                        if new_action.optimized == True and str(new_action.add_edge[1]) in set(pair):
                             is_collision = True
                         else:
                             continue

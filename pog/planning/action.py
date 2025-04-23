@@ -29,7 +29,9 @@ class Action():
                  edge_edit_pair,
                  action_type=None,
                  agent="",
-                 optimized=True) -> None:
+                 optimized=True,
+                 skip_pruning=False,
+                 path_clear=False) -> None:
         if action_type is not None:
             self.action_type = action_type
         elif edge_edit_pair[0] is None and edge_edit_pair[1] is not None:
@@ -44,7 +46,8 @@ class Action():
         self.add_edge = edge_edit_pair[1]
         self.optimized = optimized
         self.reverse = False
-        self.nece = False
+        self.skip_pruning = skip_pruning
+        self.path_clear = path_clear
 
     def __eq__(self, other) -> bool:
         return hasattr(other, 'action_type') and hasattr(other, 'agent') and \
@@ -131,18 +134,30 @@ def updateGraph(current: Graph,
             node = current.node_dict[action.del_edge[0]]
             node.State = ContainmentState.Opened
             if node.shape.shape_type == ShapeID.Drawer:
-                pose = current.getPose(edge_id=[action.del_edge[0]])
-                pose[action.del_edge[0]]['pose'][1] = 0.5
-                current.setPose(pose)
 
+                temp = current.copy()
+                pose = temp.getPose(edge_id=[action.del_edge[0]])
+                parent = temp.edge_dict[action.del_edge[0]].parent_id
+                pose[action.del_edge[0]]['pose'][1] = 0.5
+                temp.setPose(pose)
+
+                current.removeNode(action.del_edge[0])
+                current.addNode(parent, edge=temp.edge_dict[action.del_edge[0]])
+                del pose, temp
 
         elif action.action_type == ActionType.Close:
             node = current.node_dict[action.del_edge[0]]
             node.State = ContainmentState.Closed
             if node.shape.shape_type == ShapeID.Drawer:
-                pose = current.getPose(edge_id=[action.del_edge[0]])
+                temp = current.copy()
+                pose = temp.getPose(edge_id=[action.del_edge[0]])
+                parent = temp.edge_dict[action.del_edge[0]].parent_id
                 pose[action.del_edge[0]]['pose'][1] = 0.05
-                current.setPose(pose)
+                temp.setPose(pose)
+
+                current.removeNode(action.del_edge[0])
+                current.addNode(parent, edge=temp.edge_dict[action.del_edge[0]])
+                del pose, temp
 
         elif action.action_type == ActionType.PicknPlace:
             if action.optimized:

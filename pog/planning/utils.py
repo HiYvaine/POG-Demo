@@ -12,6 +12,8 @@ from pog.planning.searchNode import SearchNode
 import vedo
 import networkx as nx
 from collections import deque
+import os
+from datetime import datetime
 
 def operation_picknplace(node, source_object, target_object): # for foward astar search
     if not node.node_dict[source_object].accessible:
@@ -75,6 +77,10 @@ def apply_action_sequence_to_graph(init : Graph, goal : Graph, action_sequence :
     current = init.copy()
     success = True
     idx = 0
+    if visualize:
+        timestamp = datetime.now().strftime("%m%d_%H_%M")
+        screenshot_dir = f"result/screenshot/{timestamp}"
+        os.makedirs(screenshot_dir, exist_ok=True)
     for action in action_sequence:
         if save_step:
             current.toJson(file_dir="result/", file_name="{}.json".format(idx))
@@ -88,7 +94,9 @@ def apply_action_sequence_to_graph(init : Graph, goal : Graph, action_sequence :
         if visualize and action and action.action_type != ActionType.Pick:
             current.create_scene()
             plt = vedo.Plotter()
-            plt.show(current.scene.dump(concatenate=True), axes=0, resetcam=True, interactive=True, title="Action_{} : {}".format(idx, action))
+            plt.show(current.scene.dump(concatenate=True), 
+                     zoom="tight", axes=0, resetcam=True, interactive=True, title="Action_{} : {}".format(idx, action),
+                     screenshot=f"{screenshot_dir}/action_{idx}.png")
             # to ensure the window title refreshes
             plt.render()
             print("Press Esc to close display window and continue...")
@@ -99,7 +107,7 @@ def checkRedundant(prev: Action, curr: Action, node: SearchNode):
     if prev and curr:
         if prev.action_type == ActionType.Pick and curr.action_type == ActionType.Place:
             if prev.del_edge[1] == curr.add_edge[1] and prev.del_edge[0] == curr.add_edge[0]:
-                if curr.optimized == False:
+                if curr.optimized == False and curr.skip_pruning == False:
                     current = node.current.copy()
                     before_child_aff = current.edge_dict[prev.del_edge[1]].relations[
                                         AffordanceType.Support]['child'].name
