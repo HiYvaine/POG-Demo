@@ -107,9 +107,12 @@
             "size": [
                 0.55,
                 0.5,
-                0.3
+                0.04
             ],
-            "height": -1.0
+            "height": -1.0,
+            "joint_axis": "y",
+            "opened_position": 0.5,
+            "closed_position": 0.05
         },
         {
             "id": 5,

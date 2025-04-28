@@ -19,6 +19,9 @@ class Drawer(Shape):
                  size=np.array([0.8, 0.8, 0.4]),
                  transform=np.identity(4),
                  storage_type='drawer',
+                 joint_axis='y',
+                 opened_position=0.5,
+                 closed_position=0.05,
                  **kwargs):
         super().__init__(shape_type)
         if shape_type not in [ShapeID.Drawer]:
@@ -26,6 +29,9 @@ class Drawer(Shape):
         size = np.array(size)
         self.size = size
         self.transform = transform
+        self.joint_axis = joint_axis
+        self.opened_position = opened_position
+        self.closed_position = closed_position
 
         self.object_type = ShapeType.ARTIC
         outer_shape = creation.box(size, transform, **kwargs)
@@ -50,7 +56,18 @@ class Drawer(Shape):
 
     @classmethod
     def from_saved(cls, n: dict):
-        return cls(size=n['size'], transform=np.array(n['transform']))
+        params = {
+            "size": n["size"],
+            "transform": np.array(n["transform"]),
+        }
+        if "joint_axis" in n:
+            params["joint_axis"] = n["joint_axis"]
+        if "opened_position" in n:
+            params["opened_position"] = n["opened_position"]
+        if "closed_position" in n:
+            params["closed_position"] = n["closed_position"]
+
+        return cls(**params)
 
     def create_aff(self, storage_type: str, size):
         outer_params = {

@@ -1,5 +1,7 @@
 from enum import Enum
 from typing import List
+
+import numpy as np
 from pog.graph.edge import Edge
 
 from pog.graph.graph import Graph
@@ -31,7 +33,8 @@ class Action():
                  agent="",
                  optimized=True,
                  skip_pruning=False,
-                 path_clear=False) -> None:
+                 path_clear=False,
+                 foresee_node=None) -> None:
         if action_type is not None:
             self.action_type = action_type
         elif edge_edit_pair[0] is None and edge_edit_pair[1] is not None:
@@ -48,6 +51,7 @@ class Action():
         self.reverse = False
         self.skip_pruning = skip_pruning
         self.path_clear = path_clear
+        self.foresee_node = foresee_node
 
     def __eq__(self, other) -> bool:
         return hasattr(other, 'action_type') and hasattr(other, 'agent') and \
@@ -85,11 +89,24 @@ class Action():
                        action_type=ActionType.Place,
                        optimized=False))
 
+def updateArticPosition(current: Graph, object_id, joint_axis, position):
+
+    temp = current.copy()
+    pose = temp.getPose(edge_id=[object_id])
+    axis_mapping = {'x': 0, 'y': 1, 'z': 2}
+    parent = temp.edge_dict[object_id].parent_id
+    pose[object_id]['pose'][axis_mapping[joint_axis]] = position
+    temp.setPose(pose)
+
+    current.removeNode(object_id)
+    current.addNode(parent, edge=temp.edge_dict[object_id])
+    del pose, temp
 
 def updateGraph(current: Graph,
                 goal: Graph,
                 action_seq: List[Action],
                 optimize=False):
+
     for action in action_seq:
         if action is None:
             continue
@@ -119,6 +136,16 @@ def updateGraph(current: Graph,
                     pose=[0, 0, 0])
                 current.addNode(action.add_edge[0], edge=edge)
                 if optimize:
+                    if action.foresee_node is not None: 
+                        node_t = action.foresee_node
+                        if node_t.State == ContainmentState.Opened:
+                            foresee_position = node_t.shape.opened_position
+                            cur_position = node_t.shape.closed_position
+                        else:
+                            foresee_position = node_t.shape.closed_position
+                            cur_position = node_t.shape.opened_position
+                        updateArticPosition(current, node_t.id, node_t.shape.joint_axis, foresee_position)
+
                     fixed_nodes = list(current.graph.nodes)
                     fixed_nodes.remove(action.add_edge[1])
                     cnt_sat = False
@@ -129,35 +156,27 @@ def updateGraph(current: Graph,
                             current,
                             fixed_nodes=fixed_nodes,
                             random_start=True)
-
+                        
+                    if action.foresee_node is not None:
+                        updateArticPosition(current, node_t.id, node_t.shape.joint_axis, cur_position)
+        
         elif action.action_type == ActionType.Open:
             node = current.node_dict[action.del_edge[0]]
             node.State = ContainmentState.Opened
+
             if node.shape.shape_type == ShapeID.Drawer:
-
-                temp = current.copy()
-                pose = temp.getPose(edge_id=[action.del_edge[0]])
-                parent = temp.edge_dict[action.del_edge[0]].parent_id
-                pose[action.del_edge[0]]['pose'][1] = 0.5
-                temp.setPose(pose)
-
-                current.removeNode(action.del_edge[0])
-                current.addNode(parent, edge=temp.edge_dict[action.del_edge[0]])
-                del pose, temp
+                updateArticPosition(current, action.del_edge[0],
+                                    node.shape.joint_axis,
+                                    node.shape.opened_position)
 
         elif action.action_type == ActionType.Close:
             node = current.node_dict[action.del_edge[0]]
             node.State = ContainmentState.Closed
-            if node.shape.shape_type == ShapeID.Drawer:
-                temp = current.copy()
-                pose = temp.getPose(edge_id=[action.del_edge[0]])
-                parent = temp.edge_dict[action.del_edge[0]].parent_id
-                pose[action.del_edge[0]]['pose'][1] = 0.05
-                temp.setPose(pose)
 
-                current.removeNode(action.del_edge[0])
-                current.addNode(parent, edge=temp.edge_dict[action.del_edge[0]])
-                del pose, temp
+            if node.shape.shape_type == ShapeID.Drawer:
+                updateArticPosition(current, action.del_edge[0],
+                                    node.shape.joint_axis,
+                                    node.shape.closed_position)
 
         elif action.action_type == ActionType.PicknPlace:
             if action.optimized:
@@ -231,6 +250,16 @@ class ActionConstraints():
 
         for key in delete_key:
             del self.constraints[key]
+
+    def delConstraintPair(self, former, latter):
+
+        if latter in self.constraints.keys():
+            try:
+                self.constraints[latter].remove(former)
+                if not self.constraints[latter]:
+                    del self.constraints[latter]
+            except ValueError:
+                pass
 
     def replaceConstraint(self, action1, action2):
         for _, value in self.constraints.items():

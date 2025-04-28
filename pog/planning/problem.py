@@ -88,29 +88,31 @@ class PlanningOnGraphProblem(Search_problem):
                             colliding_objects.append(int(other_object))
                         else:
                             continue
-                    # TODO: remove的object不一定在parking_place上, 以及没有考虑堆叠在一起的物体
+                    # TODO: remove的object不一定在parking_place上, 
+                    # 没有考虑堆叠在一起的物体, collision没有考虑path上的实体
                     if is_collision:
 
                         new_action.path_clear = True
                         new_action_seq.extend([new_action])
+                        node_t = current.node_dict[new_action.del_edge[0]]
 
                         for obj in colliding_objects:
 
                             clear_pick = Action(((self.parking_place, obj), None), 
                                                 action_type=ActionType.Pick) 
+                            
+                            current_t = node.current.copy()
+                            updateGraph(current_t, self.goal_graph, [clear_pick])
 
                             clear_place = Action((None, (self.parking_place, obj)),
                                                 action_type=ActionType.Place,
                                                 optimized=False,
-                                                skip_pruning=True)
-
+                                                skip_pruning=True,
+                                                foresee_node=node_t)
+                            
                             new_action_seq.extend([clear_place])
-
-                            current = node.current.copy()
-                            updateGraph(current, self.goal_graph, [clear_pick])
-
                             to_node = SearchNode(new_action_seq, constraints, clear_pick,
-                                                current, self.goal_graph)
+                                                current_t, self.goal_graph)
                             neighbors.append(Arc(node, to_node))
 
                         continue
