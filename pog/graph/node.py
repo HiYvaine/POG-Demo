@@ -21,6 +21,8 @@ class Node():
         self.accessible = True
         if self.shape.object_type == ShapeType.ARTIC:
             self.state = ContainmentState.Closed
+            if hasattr(shape, 'state'):
+                self.state = shape.state
         else:
             self.state = None
         

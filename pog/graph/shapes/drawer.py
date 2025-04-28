@@ -7,6 +7,7 @@ import sdf.d3
 import trimesh
 import trimesh.creation as creation
 import trimesh.visual
+from pog.graph.node import ContainmentState
 from pog.graph.params import BULLET_GROUND_OFFSET, WALL_THICKNESS
 from pog.graph.shape import Affordance, Shape, ShapeID, ShapeType
 
@@ -20,18 +21,23 @@ class Drawer(Shape):
                  transform=np.identity(4),
                  storage_type='drawer',
                  joint_axis='y',
-                 opened_position=0.5,
-                 closed_position=0.05,
+                 joint_dmax=0.45,
+                 state=0,
                  **kwargs):
         super().__init__(shape_type)
         if shape_type not in [ShapeID.Drawer]:
-            raise Exception('inwalid shape type of drawer')
+            raise Exception('Invalid shape type of drawer')
         size = np.array(size)
         self.size = size
         self.transform = transform
         self.joint_axis = joint_axis
-        self.opened_position = opened_position
-        self.closed_position = closed_position
+        if state == 0:
+            self.state = ContainmentState.Closed
+        elif state == 1:           
+            self.state = ContainmentState.Opened
+        else:   
+            raise Exception('Invalid state of drawer')
+        self.joint_dmax = joint_dmax
 
         self.object_type = ShapeType.ARTIC
         outer_shape = creation.box(size, transform, **kwargs)
@@ -62,10 +68,10 @@ class Drawer(Shape):
         }
         if "joint_axis" in n:
             params["joint_axis"] = n["joint_axis"]
-        if "opened_position" in n:
-            params["opened_position"] = n["opened_position"]
-        if "closed_position" in n:
-            params["closed_position"] = n["closed_position"]
+        if "joint_dmax" in n:
+            params["joint_dmax"] = n["joint_dmax"]
+        if "state" in n:
+            params["state"] = n["state"]
 
         return cls(**params)
 

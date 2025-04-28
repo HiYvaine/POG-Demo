@@ -111,8 +111,8 @@
             ],
             "height": -1.0,
             "joint_axis": "y",
-            "opened_position": 0.5,
-            "closed_position": 0.05
+            "joint_dmax": 0.45,
+            "state": 0
         },
         {
             "id": 5,
@@ -354,7 +354,7 @@
                     "dof": "fixed",
                     "pose": [
                         -0.02,
-                        0.5,
+                        0.05,
                         3.141592653589793
                     ]
                 }

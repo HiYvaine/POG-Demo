@@ -5,9 +5,9 @@ import numpy as np
 from pog.graph.edge import Edge
 
 from pog.graph.graph import Graph
-from pog.graph.node import ContainmentState
+from pog.graph.node import Node, ContainmentState
 from pog.graph.params import PairedSurface
-from pog.graph.shape import AffordanceType
+from pog.graph.shape import AffordanceType, ShapeType
 from pog.algorithm.structure import simulated_annealing_structure
 from pog.planning.ged import ged_seq
 from pog.planning.params import MAX_UPDATE_ITER
@@ -89,18 +89,24 @@ class Action():
                        action_type=ActionType.Place,
                        optimized=False))
 
-def updateArticPosition(current: Graph, object_id, joint_axis, position):
+def updateArticPosition(current: Graph, node: Node, reverse=False):
+    if node is not None and node.shape.object_type == ShapeType.ARTIC:
+        temp = current.copy()
+        pose = temp.getPose(edge_id=[node.id])
+        axis_mapping = {'x': 0, 'y': 1, 'z': 2}
+        parent = temp.edge_dict[node.id].parent_id
 
-    temp = current.copy()
-    pose = temp.getPose(edge_id=[object_id])
-    axis_mapping = {'x': 0, 'y': 1, 'z': 2}
-    parent = temp.edge_dict[object_id].parent_id
-    pose[object_id]['pose'][axis_mapping[joint_axis]] = position
-    temp.setPose(pose)
+        opened = True if node.state == ContainmentState.Opened else False
+        if opened ^ reverse:
+            pose[node.id]['pose'][axis_mapping[node.shape.joint_axis]] += node.shape.joint_dmax
+        else:
+            pose[node.id]['pose'][axis_mapping[node.shape.joint_axis]] -= node.shape.joint_dmax
 
-    current.removeNode(object_id)
-    current.addNode(parent, edge=temp.edge_dict[object_id])
-    del pose, temp
+        temp.setPose(pose)
+
+        current.removeNode(node.id)
+        current.addNode(parent, edge=temp.edge_dict[node.id])
+        del pose, temp
 
 def updateGraph(current: Graph,
                 goal: Graph,
@@ -136,15 +142,7 @@ def updateGraph(current: Graph,
                     pose=[0, 0, 0])
                 current.addNode(action.add_edge[0], edge=edge)
                 if optimize:
-                    if action.foresee_node is not None: 
-                        node_t = action.foresee_node
-                        if node_t.State == ContainmentState.Opened:
-                            foresee_position = node_t.shape.opened_position
-                            cur_position = node_t.shape.closed_position
-                        else:
-                            foresee_position = node_t.shape.closed_position
-                            cur_position = node_t.shape.opened_position
-                        updateArticPosition(current, node_t.id, node_t.shape.joint_axis, foresee_position)
+                    updateArticPosition(current, action.foresee_node)
 
                     fixed_nodes = list(current.graph.nodes)
                     fixed_nodes.remove(action.add_edge[1])
@@ -157,26 +155,21 @@ def updateGraph(current: Graph,
                             fixed_nodes=fixed_nodes,
                             random_start=True)
                         
-                    if action.foresee_node is not None:
-                        updateArticPosition(current, node_t.id, node_t.shape.joint_axis, cur_position)
+                    updateArticPosition(current, action.foresee_node, reverse=True)
         
         elif action.action_type == ActionType.Open:
             node = current.node_dict[action.del_edge[0]]
-            node.State = ContainmentState.Opened
+            node.state = ContainmentState.Opened
 
             if node.shape.shape_type == ShapeID.Drawer:
-                updateArticPosition(current, action.del_edge[0],
-                                    node.shape.joint_axis,
-                                    node.shape.opened_position)
+                updateArticPosition(current, node)
 
         elif action.action_type == ActionType.Close:
             node = current.node_dict[action.del_edge[0]]
-            node.State = ContainmentState.Closed
+            node.state = ContainmentState.Closed
 
             if node.shape.shape_type == ShapeID.Drawer:
-                updateArticPosition(current, action.del_edge[0],
-                                    node.shape.joint_axis,
-                                    node.shape.closed_position)
+                updateArticPosition(current, node)
 
         elif action.action_type == ActionType.PicknPlace:
             if action.optimized:

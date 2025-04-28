@@ -77,14 +77,17 @@ class PlanningOnGraphProblem(Search_problem):
             updateGraph(current, self.goal_graph, [new_action])
 
             if new_action.action_type == ActionType.Open or new_action.action_type == ActionType.Close:
-                obj_type = current.node_dict[new_action.del_edge[0]].shape.shape_type
+                object_id = new_action.del_edge[0]
+                object_node = current.node_dict[object_id]
 
-                if obj_type == ShapeID.Drawer and not new_action.path_clear:
-                    is_collision, names = current.collision_manager.in_collision_internal(return_names=True)
+                if object_node.shape.shape_type == ShapeID.Drawer and not new_action.path_clear:
+                    current_collision = current.collision_manager
+
+                    is_collision, names = current_collision.in_collision_internal(return_names=True)
                     colliding_objects = []
                     for pair in names:
-                        if str(new_action.del_edge[0]) in set(pair):
-                            other_object = pair[0] if pair[1] == str(new_action.del_edge[0]) else pair[1]
+                        if str(object_id) in set(pair):
+                            other_object = pair[0] if pair[1] == str(object_id) else pair[1]
                             colliding_objects.append(int(other_object))
                         else:
                             continue
@@ -94,7 +97,6 @@ class PlanningOnGraphProblem(Search_problem):
 
                         new_action.path_clear = True
                         new_action_seq.extend([new_action])
-                        node_t = current.node_dict[new_action.del_edge[0]]
 
                         for obj in colliding_objects:
 
@@ -108,7 +110,7 @@ class PlanningOnGraphProblem(Search_problem):
                                                 action_type=ActionType.Place,
                                                 optimized=False,
                                                 skip_pruning=True,
-                                                foresee_node=node_t)
+                                                foresee_node=object_node)
                             
                             new_action_seq.extend([clear_place])
                             to_node = SearchNode(new_action_seq, constraints, clear_pick,
