@@ -60,6 +60,29 @@ class Drawer(Shape):
         self.com = np.array(self.shape.center_mass)
         self.create_aff(storage_type, size)
 
+        axis_mapping = {'x': 0, 'y': 1, 'z': 2}
+        axis_index = axis_mapping[joint_axis]
+        swept_size = size.copy()
+        swept_size[axis_mapping[joint_axis]] = joint_dmax
+
+        open_swept_tf = transform.copy()
+        open_swept_tf[axis_index, 3] += (joint_dmax+size[axis_index]) / 2
+        open_swept_shape = creation.box(
+            extents=swept_size,
+            transform=open_swept_tf,
+            **kwargs,      
+        )                         
+        self.open_shape: trimesh.Trimesh = trimesh.util.concatenate(self.shape, open_swept_shape)
+
+        close_swept_tf = transform.copy()
+        close_swept_tf[axis_index, 3] -= (joint_dmax+size[axis_index]) / 2
+        close_swept_shape = creation.box(
+            extents=swept_size,
+            transform=close_swept_tf,
+            **kwargs,      
+        )                         
+        self.close_shape: trimesh.Trimesh = trimesh.util.concatenate(self.shape, close_swept_shape)
+
     @classmethod
     def from_saved(cls, n: dict):
         params = {

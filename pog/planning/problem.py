@@ -81,9 +81,8 @@ class PlanningOnGraphProblem(Search_problem):
                 object_node = current.node_dict[object_id]
 
                 if object_node.shape.shape_type == ShapeID.Drawer and not new_action.path_clear:
-                    current_collision = current.collision_manager
 
-                    is_collision, names = current_collision.in_collision_internal(return_names=True)
+                    is_collision, names = current.collision_manager.in_collision_internal(return_names=True)
                     colliding_objects = []
                     for pair in names:
                         if str(object_id) in set(pair):
@@ -91,8 +90,11 @@ class PlanningOnGraphProblem(Search_problem):
                             colliding_objects.append(int(other_object))
                         else:
                             continue
-                    # TODO: remove的object不一定在parking_place上, 
-                    # 没有考虑堆叠在一起的物体, collision没有考虑path上的实体
+                    
+
+                    # TODO: The object to be removed may not be on the parking_place.
+                    # Stacked objects are not considered.
+
                     if is_collision:
 
                         new_action.path_clear = True

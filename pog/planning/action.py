@@ -92,6 +92,7 @@ class Action():
 def updateArticPosition(current: Graph, node: Node, reverse=False):
     if node is not None and node.shape.object_type == ShapeType.ARTIC:
         temp = current.copy()
+        before_tf = temp.global_transform[node.id].copy()
         pose = temp.getPose(edge_id=[node.id])
         axis_mapping = {'x': 0, 'y': 1, 'z': 2}
         parent = temp.edge_dict[node.id].parent_id
@@ -106,7 +107,13 @@ def updateArticPosition(current: Graph, node: Node, reverse=False):
 
         current.removeNode(node.id)
         current.addNode(parent, edge=temp.edge_dict[node.id])
-        del pose, temp
+
+        if not reverse:
+            swept_shape = node.shape.open_shape if opened else node.shape.close_shape
+            current.collision_manager.remove_object(name=str(node.id))
+            current.collision_manager.add_object(name=str(node.id),
+                                                 mesh=swept_shape,
+                                                 transform=before_tf)
 
 def updateGraph(current: Graph,
                 goal: Graph,
