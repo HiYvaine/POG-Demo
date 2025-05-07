@@ -72,7 +72,9 @@
                 0.62,
                 0.9099999999999999
             ],
-            "height": -1.0
+            "height": -1.0,
+            "with_door": true,
+            "joint_axis": "z"
         },
         {
             "id": 3,
@@ -110,7 +112,6 @@
                 0.04
             ],
             "height": -1.0,
-            "joint_axis": "y",
             "joint_dmax": 0.45,
             "state": 0
         },

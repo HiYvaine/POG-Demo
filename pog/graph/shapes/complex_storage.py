@@ -7,9 +7,38 @@ import sdf.d3
 import transforms3d
 import trimesh
 import trimesh.creation as creation
+from pog.graph.node import ContainmentState
 from pog.graph.params import BULLET_GROUND_OFFSET, WALL_THICKNESS
 from pog.graph.shape import Affordance, Shape, ShapeID, ShapeType
+from trimesh.transformations import rotation_matrix
+from scipy.spatial import ConvexHull
 
+# Don't use — in_collision_internal can't detect full containment.
+def compute_door_swept_convex_hull(door_shape, rotation_center, rotation_axis, swept_angle, interpolations=3):
+
+    vertices = []
+    angles = np.linspace(0, swept_angle, interpolations+2)
+    for angle in angles:
+        interp_door = door_shape.copy()
+        combined_transform = rotation_matrix(angle, rotation_axis, point=rotation_center)
+        interp_door.apply_transform(combined_transform)
+        vertices.append(interp_door.vertices)
+    vertices = np.vstack(vertices)
+    hull = ConvexHull(vertices)
+    swept_mesh = trimesh.Trimesh(vertices=vertices, faces=hull.simplices)
+    return swept_mesh
+
+def compute_door_swept_concatenate(door_shape, rotation_center, rotation_axis, swept_angle, interpolations=6):
+
+    interp_doors = []
+    angles = np.linspace(0, swept_angle, interpolations+2)
+    for angle in angles:
+        interp_door = door_shape.copy()
+        combined_transform = rotation_matrix(angle, rotation_axis, point=rotation_center)
+        interp_door.apply_transform(combined_transform)
+        interp_doors.append(interp_door)
+    swept_mesh: trimesh.Trimesh = trimesh.util.concatenate(interp_doors)
+    return swept_mesh
 
 class ComplexStorage(Shape):
     size: ArrayType
@@ -19,6 +48,10 @@ class ComplexStorage(Shape):
                  size=np.array([0.8, 0.8, 1.0]),
                  transform=np.identity(4),
                  storage_type='cabinet',
+                 with_door=True,
+                 joint_axis='x',
+                 joint_dmax=np.pi/2,
+                 state=0,
                  **kwargs):
         """
         size: size in xyz
@@ -29,6 +62,12 @@ class ComplexStorage(Shape):
                 "invalid shape type of complex store: {}".format(shape_type))
         size = np.array(size)
         self.size = size
+        self.with_door = with_door
+
+        if   state == 0: self.state = ContainmentState.Closed
+        elif state == 1: self.state = ContainmentState.Opened
+        else: raise Exception('Invalid state of ComplexStorage')
+        
         outer_shape = creation.box(size, transform, **kwargs)
         inner_tf = transform + np.array([
             [0, 0, 0, 0],
@@ -36,6 +75,7 @@ class ComplexStorage(Shape):
             [0, 0, 0, 0],
             [0, 0, 0, 0],
         ])
+        # The ComplexStorage opens by default along the positive Y-axis.
         inner_shape = creation.box(
             extents=size - np.array(WALL_THICKNESS),
             transform=inner_tf,
@@ -55,9 +95,43 @@ class ComplexStorage(Shape):
             ]),
             **kwargs,
         )
-        self.shape: trimesh.Trimesh = trimesh.util.concatenate(
-            outer_shape.difference(inner_shape), board_shape)
-        self.shape.visual.face_colors[:] = trimesh.visual.random_color()
+                                  
+        body_shape: trimesh.Trimesh = trimesh.util.concatenate(outer_shape.difference(inner_shape),board_shape)
+        self.shape = body_shape
+        shape_color = trimesh.visual.random_color()
+        self.shape.visual.face_colors[:] = shape_color
+
+        if with_door:
+
+            door_transform = transform.copy()
+            door_transform[1, 3] += (size[1] + WALL_THICKNESS) / 2.0
+            door_shape = creation.box(extents=[size[0], WALL_THICKNESS, size[2]],
+                                    transform=door_transform,
+                                    **kwargs)
+
+            self.close_shape: trimesh.Trimesh = trimesh.util.concatenate(body_shape, door_shape)
+            self.close_shape.visual.face_colors[:] = shape_color
+
+            door_open_shape = door_shape.copy()
+            if joint_axis == 'z':
+                rotation_center = [size[0]/2, size[1]/2, 0]
+                rotation_axis = [0, 0, 1]
+                end_angle = -joint_dmax
+
+            if joint_axis == 'x':
+                rotation_center = [0, size[1]/2, size[2]/2]
+                rotation_axis = [1, 0, 0]
+                end_angle = joint_dmax
+
+            combined_transform = rotation_matrix(end_angle, rotation_axis, point=rotation_center)
+            door_open_shape.apply_transform(combined_transform)
+            self.open_shape: trimesh.Trimesh = trimesh.util.concatenate(body_shape, door_open_shape)
+            self.open_shape.visual.face_colors[:] = shape_color
+
+            self.door_swept_shape = compute_door_swept_concatenate(door_shape, rotation_center, rotation_axis, end_angle)
+            self.open_swept_shape: trimesh.Trimesh = trimesh.util.concatenate(body_shape, self.door_swept_shape)
+            self.close_swept_shape = self.open_swept_shape.copy()
+
         self.transform = transform
         self.volume = self.shape.volume
         self.mass = self.volume
@@ -71,7 +145,20 @@ class ComplexStorage(Shape):
 
     @classmethod
     def from_saved(cls, n: dict):
-        return cls(size=n['size'], transform=np.array(n['transform']))
+        params = {
+            "size": n["size"],
+            "transform": np.array(n["transform"]),
+        }
+        if "with_door" in n:
+            params["with_door"] = n["with_door"]
+        if "joint_axis" in n:
+            params["joint_axis"] = n["joint_axis"]
+        if "joint_dmax" in n:
+            params["joint_dmax"] = n["joint_dmax"]
+        if "state" in n:
+            params["state"] = n["state"]
+
+        return cls(**params)
 
     def create_aff(self, storage_type: str, size):
         outer_params = {

@@ -2,7 +2,7 @@
 from pog.graph.graph import Graph
 from pog.planning.searchProblem import Search_problem, Path
 from pog.planning.searchNode import SearchNode
-from pog.planning.action import Action, ActionType, action_seq_generator, updateGraph
+from pog.planning.action import Action, ActionType, action_seq_generator, updateGraph, updateArticPosition
 from pog.graph.shape import ShapeID
 import copy
 
@@ -75,25 +75,26 @@ class PlanningOnGraphProblem(Search_problem):
             (new_action_seq, constraints, new_action) = neighbor
             current = node.current.copy()
             updateGraph(current, self.goal_graph, [new_action])
-
             if new_action.action_type == ActionType.Open or new_action.action_type == ActionType.Close:
                 object_id = new_action.del_edge[0]
-                object_node = current.node_dict[object_id]
-
-                if object_node.shape.shape_type == ShapeID.Drawer and not new_action.path_clear:
-
-                    is_collision, names = current.collision_manager.in_collision_internal(return_names=True)
+                if not new_action.path_clear:
+                    temp_current = node.current.copy()
+                    updateArticPosition(temp_current, new_action, execute=False)    
+                    is_collision, names = temp_current.collision_manager.in_collision_internal(return_names=True)
                     colliding_objects = []
                     for pair in names:
-                        if str(object_id) in set(pair):
+                        if (str(object_id) in set(pair)):
                             other_object = pair[0] if pair[1] == str(object_id) else pair[1]
-                            colliding_objects.append(int(other_object))
-                        else:
-                            continue
-                    
+                            if int(other_object) not in temp_current.placeholder_nodes:
+                                colliding_objects.append(int(other_object))
 
+                    if not colliding_objects:
+                        new_action.path_clear = True
+                        is_collision = False
+                
                     # TODO: The object to be removed may not be on the parking_place.
                     # Stacked objects are not considered.
+                    # The object to be removed can be placed on goal edge
 
                     if is_collision:
 
@@ -107,12 +108,12 @@ class PlanningOnGraphProblem(Search_problem):
                             
                             current_t = node.current.copy()
                             updateGraph(current_t, self.goal_graph, [clear_pick])
-
+                            # current.addNode(parent, edge=goal.edge_dict[child])
                             clear_place = Action((None, (self.parking_place, obj)),
                                                 action_type=ActionType.Place,
                                                 optimized=False,
                                                 skip_pruning=True,
-                                                foresee_node=object_node)
+                                                foresee_action=new_action)
                             
                             new_action_seq.extend([clear_place])
                             to_node = SearchNode(new_action_seq, constraints, clear_pick,

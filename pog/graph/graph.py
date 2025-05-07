@@ -60,6 +60,7 @@ class Graph():
         self.robot_cfg = None
         self.tensor_args = None
         self.grasp_pose_data = None
+        self.placeholder_nodes = set()
 
         if file_dir is None and fn is not None:
             self.node_dict, self.edge_dict, self.root = fn(**kwargs)
@@ -283,6 +284,7 @@ class Graph():
             temp_node['size'] = getattr(node.shape, 'size',
                                         np.array([])).tolist()
             temp_node['height'] = getattr(node.shape, 'height', -1.)
+            # TODO: add artic attributes
             if node.shape.shape_type == shape.ShapeID.Imported:
                 try:
                     temp_node['file_path'] = node.shape.mesh_dir
@@ -484,22 +486,56 @@ class Graph():
         input("Press [enter] to continue.")
         plt.close()
 
+
+    def genNodeShape(self, object_id: int):
+        
+        node = self.node_dict[object_id]
+        try: node_shape = node.shape.shape.copy()
+        except AttributeError as e: 
+            raise Exception(f"Object_{object_id} has no shape: {e}")
+        
+        if node.shape.object_type == shape.ShapeType.ARTIC and node.state: 
+            if node.state == ContainmentState.Opened and hasattr(node.shape, 'open_shape'):
+                node_shape = node.shape.open_shape.copy()
+            elif node.state == ContainmentState.Closed and hasattr(node.shape, 'close_shape'):
+                node_shape = node.shape.close_shape.copy()
+
+        return node_shape
+
+
     def create_scene(self):
         """create Trimesh.Scene for visualization
         """
         max_depth = len(nx.algorithms.dag_longest_path(self.graph))
         node_depth = nx.shortest_path_length(self.graph, self.root)
-        geom = self.node_dict[self.root].shape.shape.copy()
+        geom = self.genNodeShape(self.root)
         self.scene = trimesh.Scene()
         self.scene.add_geometry(geom, node_name=self.root)
         for i in range(1, max_depth):
             for key, value in node_depth.items():
                 if value == i:
+                    node_geom = self.genNodeShape(key)
                     self.scene.add_geometry(
-                        self.node_dict[key].shape.shape.copy(),
+                        node_geom,
                         node_name=key,
                         parent_node_name=self.edge_dict[key].parent_id,
                         transform=self.edge_dict[key].parent_to_child_tf)
+                    
+
+    def create_collision_scene(self):
+        """create Trimesh.Scene for visualization
+        """
+        self.collision_scene = trimesh.Scene()
+
+        for key, _ in self.node_dict.items():
+            if key in self.graph.nodes():
+                try:
+                    self.collision_scene.add_geometry(
+                        geometry=self.genNodeShape(key),
+                        node_name=str(key),
+                        transform=self.global_transform[key])
+                except:
+                    print(key, self.global_transform.keys())
 
     @staticmethod
     def transform_matrix_to_list(matrix: np.ndarray) -> list:
@@ -523,15 +559,15 @@ class Graph():
         self.computeGlobalTF()
 
         for depth in range(1, max_depth):
-            for node in node_depth:
-                if node not in (exclude_object_ids or set()):
-                    if node_depth[node] == depth:
-                        node_mesh = self.node_dict[node].shape.shape.copy()
+            for node_id in node_depth:
+                if node_id not in (exclude_object_ids or set()):
+                    if node_depth[node_id] == depth:
+                        node_mesh = self.genNodeShape(node_id)
                         # transform_pose = [0, 0, 0, 1, 0, 0, 0]
-                        transform_pose = self.transform_matrix_to_list(self.global_transform[node])
+                        transform_pose = self.transform_matrix_to_list(self.global_transform[node_id])
 
                         mesh = Mesh(
-                            name=f"object_{node}",
+                            name=f"object_{node_id}",
                             pose=transform_pose,
                             vertices=node_mesh.vertices.tolist(),
                             faces=node_mesh.faces.tolist()
@@ -613,6 +649,13 @@ class Graph():
 
         # sub_graph = Graph('Subgraph of {} at node {}.'.format(self.name, node_id), fn = fn)
         sub_graph = Graph('subgraph', fn=fn)
+        sub_collision_scene = self.collision_scene.copy()
+        for key, _ in self.node_dict.items():
+            if key not in sub_graph.graph.nodes():
+                sub_collision_scene.delete_geometry(str(key))
+        sub_graph.collision_scene = sub_collision_scene
+        sub_graph.collision_manager, _ = trimesh.collision.scene_to_collision(sub_collision_scene)
+
         return sub_graph
 
     def copy(self):
@@ -640,6 +683,12 @@ class Graph():
         # print(self.edge_dict.values())
 
         graph_copy.root_aff = self.root_aff
+        graph_copy.ikcfg_initialized = self.ikcfg_initialized
+        graph_copy.robot_cfg = self.robot_cfg
+        graph_copy.tensor_args = self.tensor_args
+        graph_copy.grasp_pose_data = self.grasp_pose_data
+
+        graph_copy.placeholder_nodes = self.placeholder_nodes.copy()    
 
         if self.robot_root is not None:
             graph_copy.robot = self.robot.copy()
@@ -656,20 +705,23 @@ class Graph():
 
         return graph_copy
 
-    def createCollisionManager(self):
+    def createCollisionManagerLegacy(self):
         """Create Trimesh.collision.CollisionManager for current scene
         """
         self.collision_manager = trimesh.collision.CollisionManager()
-        for key, value in self.node_dict.items():
+        for key, _ in self.node_dict.items():
             if key in self.graph.nodes():
                 try:
                     self.collision_manager.add_object(
                         name=str(key),
-                        mesh=value.shape.shape,
+                        mesh=self.genNodeShape(key),
                         transform=self.global_transform[key])
                 except:
                     print(key, self.global_transform.keys())
-                    # self.show()
+
+    def createCollisionManager(self):
+        self.create_collision_scene()
+        self.collision_manager, _ = trimesh.collision.scene_to_collision(self.collision_scene)
 
     def checkStability(self):
         """Check if self is stable

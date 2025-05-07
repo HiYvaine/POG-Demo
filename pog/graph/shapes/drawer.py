@@ -20,7 +20,6 @@ class Drawer(Shape):
                  size=np.array([0.8, 0.8, 0.4]),
                  transform=np.identity(4),
                  storage_type='drawer',
-                 joint_axis='y',
                  joint_dmax=0.45,
                  state=0,
                  **kwargs):
@@ -30,13 +29,12 @@ class Drawer(Shape):
         size = np.array(size)
         self.size = size
         self.transform = transform
-        self.joint_axis = joint_axis
-        if state == 0:
-            self.state = ContainmentState.Closed
-        elif state == 1:           
-            self.state = ContainmentState.Opened
-        else:   
-            raise Exception('Invalid state of drawer')
+        self.joint_axis = 'y'
+
+        if   state == 0: self.state = ContainmentState.Closed
+        elif state == 1: self.state = ContainmentState.Opened
+        else: raise Exception('Invalid state of Drawer')
+
         self.joint_dmax = joint_dmax
 
         self.object_type = ShapeType.ARTIC
@@ -60,28 +58,25 @@ class Drawer(Shape):
         self.com = np.array(self.shape.center_mass)
         self.create_aff(storage_type, size)
 
-        axis_mapping = {'x': 0, 'y': 1, 'z': 2}
-        axis_index = axis_mapping[joint_axis]
-        swept_size = size.copy()
-        swept_size[axis_mapping[joint_axis]] = joint_dmax
+        swept_size = [size[0], joint_dmax, size[2]]
 
-        open_swept_tf = transform.copy()
-        open_swept_tf[axis_index, 3] += (joint_dmax+size[axis_index]) / 2
-        open_swept_shape = creation.box(
+        open_trail_tf = transform.copy()
+        open_trail_tf[1, 3] += (joint_dmax+size[1]) / 2.0
+        open_trail_shape = creation.box(
             extents=swept_size,
-            transform=open_swept_tf,
+            transform=open_trail_tf,
             **kwargs,      
         )                         
-        self.open_shape: trimesh.Trimesh = trimesh.util.concatenate(self.shape, open_swept_shape)
+        self.open_swept_shape: trimesh.Trimesh = trimesh.util.concatenate(self.shape, open_trail_shape)
 
-        close_swept_tf = transform.copy()
-        close_swept_tf[axis_index, 3] -= (joint_dmax+size[axis_index]) / 2
-        close_swept_shape = creation.box(
+        close_trail_tf = transform.copy()
+        close_trail_tf[1, 3] -= (joint_dmax+size[1]) / 2.0
+        close_trail_shape = creation.box(
             extents=swept_size,
-            transform=close_swept_tf,
+            transform=close_trail_tf,
             **kwargs,      
         )                         
-        self.close_shape: trimesh.Trimesh = trimesh.util.concatenate(self.shape, close_swept_shape)
+        self.close_swept_shape: trimesh.Trimesh = trimesh.util.concatenate(self.shape, close_trail_shape)
 
     @classmethod
     def from_saved(cls, n: dict):
@@ -89,8 +84,6 @@ class Drawer(Shape):
             "size": n["size"],
             "transform": np.array(n["transform"]),
         }
-        if "joint_axis" in n:
-            params["joint_axis"] = n["joint_axis"]
         if "joint_dmax" in n:
             params["joint_dmax"] = n["joint_dmax"]
         if "state" in n:

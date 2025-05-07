@@ -2,6 +2,7 @@ from enum import Enum
 from typing import List
 
 import numpy as np
+import trimesh
 from pog.graph.edge import Edge
 
 from pog.graph.graph import Graph
@@ -34,7 +35,7 @@ class Action():
                  optimized=True,
                  skip_pruning=False,
                  path_clear=False,
-                 foresee_node=None) -> None:
+                 foresee_action=None) -> None:
         if action_type is not None:
             self.action_type = action_type
         elif edge_edit_pair[0] is None and edge_edit_pair[1] is not None:
@@ -51,7 +52,7 @@ class Action():
         self.reverse = False
         self.skip_pruning = skip_pruning
         self.path_clear = path_clear
-        self.foresee_node = foresee_node
+        self.foresee_action = foresee_action
 
     def __eq__(self, other) -> bool:
         return hasattr(other, 'action_type') and hasattr(other, 'agent') and \
@@ -89,31 +90,56 @@ class Action():
                        action_type=ActionType.Place,
                        optimized=False))
 
-def updateArticPosition(current: Graph, node: Node, reverse=False):
-    if node is not None and node.shape.object_type == ShapeType.ARTIC:
-        temp = current.copy()
-        before_tf = temp.global_transform[node.id].copy()
-        pose = temp.getPose(edge_id=[node.id])
-        axis_mapping = {'x': 0, 'y': 1, 'z': 2}
-        parent = temp.edge_dict[node.id].parent_id
+def updateArticPosition(current: Graph, action: Action, reverse=False, execute=True):
+    
+    if action:
+        if action.action_type == ActionType.Open:
+            new_state = ContainmentState.Opened
+        elif action.action_type == ActionType.Close:
+            new_state = ContainmentState.Closed 
+        else:   
+            raise NotImplementedError('self.action_type = {}'.format(
+                action.action_type))
+    else:   return
+    
+    node = current.node_dict[action.del_edge[0]]
+    if execute:
+        if node.state != new_state: node.state = new_state
+        else: raise ValueError(
+                    f"Node {node.id} is already in state {node.state}, cannot update to {new_state}")
+        
+    if node.shape.object_type == ShapeType.ARTIC:
 
-        opened = True if node.state == ContainmentState.Opened else False
-        if opened ^ reverse:
-            pose[node.id]['pose'][axis_mapping[node.shape.joint_axis]] += node.shape.joint_dmax
-        else:
-            pose[node.id]['pose'][axis_mapping[node.shape.joint_axis]] -= node.shape.joint_dmax
+        opened = True if new_state == ContainmentState.Opened else False
 
-        temp.setPose(pose)
+        if not execute:
+            current.create_collision_scene()
+            if not reverse:
+                if hasattr(node.shape, 'open_swept_shape') and hasattr(node.shape, 'close_swept_shape'):
+                    swept_shape = node.shape.open_swept_shape if opened else node.shape.close_swept_shape
+                    current.collision_scene.delete_geometry(str(node.id))
+                    current.collision_scene.add_geometry(geometry=swept_shape, 
+                                                        node_name=str(node.id),
+                                                        transform=current.global_transform[node.id].copy())
+                    current.collision_manager, _ = trimesh.collision.scene_to_collision(current.collision_scene)            
+            
+        elif node.shape.shape_type == ShapeID.Drawer:
+            temp = current.copy()
+            pose = temp.getPose(edge_id=[node.id])
+            parent = temp.edge_dict[node.id].parent_id
 
-        current.removeNode(node.id)
-        current.addNode(parent, edge=temp.edge_dict[node.id])
+            shift_position = node.shape.joint_dmax if opened^reverse else -node.shape.joint_dmax
+            # Drawer slides along the Y-axis by definition
+            pose[node.id]['pose'][1] += shift_position
 
-        if not reverse:
-            swept_shape = node.shape.open_shape if opened else node.shape.close_shape
-            current.collision_manager.remove_object(name=str(node.id))
-            current.collision_manager.add_object(name=str(node.id),
-                                                 mesh=swept_shape,
-                                                 transform=before_tf)
+            temp.setPose(pose)
+            current.removeNode(node.id)
+            current.addNode(parent, edge=temp.edge_dict[node.id])
+    
+    else:   
+        raise NotImplementedError('self.shape.object_type = {}'.format(     
+            node.shape.object_type))
+            
 
 def updateGraph(current: Graph,
                 goal: Graph,
@@ -125,6 +151,7 @@ def updateGraph(current: Graph,
             continue
         elif action.action_type == ActionType.Pick:
             current.removeNode(action.del_edge[1])
+            current.placeholder_nodes.discard(action.del_edge[1])
         elif action.action_type == ActionType.Place:
             if action.optimized:
                 current.addNode(action.add_edge[0],
@@ -148,9 +175,9 @@ def updateGraph(current: Graph,
                     dof_type='x-y',
                     pose=[0, 0, 0])
                 current.addNode(action.add_edge[0], edge=edge)
+                current.placeholder_nodes.add(action.add_edge[1])
                 if optimize:
-                    updateArticPosition(current, action.foresee_node)
-
+                    updateArticPosition(current, action.foresee_action, execute=False)
                     fixed_nodes = list(current.graph.nodes)
                     fixed_nodes.remove(action.add_edge[1])
                     cnt_sat = False
@@ -161,22 +188,13 @@ def updateGraph(current: Graph,
                             current,
                             fixed_nodes=fixed_nodes,
                             random_start=True)
-                        
-                    updateArticPosition(current, action.foresee_node, reverse=True)
+                    updateArticPosition(current, action.foresee_action, reverse=True, execute=False)
         
         elif action.action_type == ActionType.Open:
-            node = current.node_dict[action.del_edge[0]]
-            node.state = ContainmentState.Opened
-
-            if node.shape.shape_type == ShapeID.Drawer:
-                updateArticPosition(current, node)
+            updateArticPosition(current, action)
 
         elif action.action_type == ActionType.Close:
-            node = current.node_dict[action.del_edge[0]]
-            node.state = ContainmentState.Closed
-
-            if node.shape.shape_type == ShapeID.Drawer:
-                updateArticPosition(current, node)
+            updateArticPosition(current, action)
 
         elif action.action_type == ActionType.PicknPlace:
             if action.optimized:
