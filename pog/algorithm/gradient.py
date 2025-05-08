@@ -69,8 +69,8 @@ def gradient_descent(
             if CHECK_COLLISION_IK:
                 # skip if the candidate has no valid IK solution
                 object_pose = sg.transform_matrix_to_list(sg.global_transform[node_id[0]])
-                ik_result = sg.checkIK(object_id=node_id[0], ik_solver=ik_solver, object_pose=object_pose)
-                if not ik_result:
+                ik_result = sg.checkIK(object_id=node_id[0], ik_solver=ik_solver, object_pose=object_pose, get_succ_rate=True)
+                if ik_result < 1e-3:
                     skip_candidates += 1
                     continue
             

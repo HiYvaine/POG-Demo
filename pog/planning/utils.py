@@ -94,7 +94,7 @@ def apply_action_sequence_to_graph(init : Graph, goal : Graph, action_sequence :
         if visualize and action and action.action_type != ActionType.Pick:
             current.create_scene()
             plt = vedo.Plotter()
-            plt.show(current.scene.dump(concatenate=True), 
+            plt.show(current.scene.to_geometry(), 
                      zoom="tight", resetcam=True, interactive=True, title="Action_{} : {}".format(idx, action),
                      screenshot=f"{screenshot_dir}/action_{idx}.png")
             # to ensure the window title refreshes

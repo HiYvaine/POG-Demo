@@ -12,6 +12,7 @@ from pog.graph.shape import AffordanceType, ShapeType
 from pog.algorithm.structure import simulated_annealing_structure
 from pog.planning.ged import ged_seq
 from pog.planning.params import MAX_UPDATE_ITER
+from pog.algorithm.params import CHECK_COLLISION_IK
 
 import logging
 import networkx as nx
@@ -156,6 +157,18 @@ def updateGraph(current: Graph,
             if action.optimized:
                 current.addNode(action.add_edge[0],
                                 edge=goal.edge_dict[action.add_edge[1]])
+                
+                ''' IK was pre-validated during search, logging success rate only. '''
+                # if optimize and CHECK_COLLISION_IK:
+                #     ik_solver = current.CreateIKSolver()         
+                #     object_pose = current.transform_matrix_to_list(
+                #         current.global_transform[action.add_edge[1]])        
+                #     ik_result = current.checkIK(object_id=action.add_edge[1], 
+                #                                 ik_solver=ik_solver, 
+                #                                 object_pose=object_pose,
+                #                                 get_succ_rate=True)   
+                #     logging.info("%s, IK success rate: %.1f%%", action, ik_result*100)
+
             else:
                 edge = Edge(action.add_edge[0], action.add_edge[1])
                 if current.root == action.add_edge[0]:

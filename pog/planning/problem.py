@@ -3,7 +3,8 @@ from pog.graph.graph import Graph
 from pog.planning.searchProblem import Search_problem, Path
 from pog.planning.searchNode import SearchNode
 from pog.planning.action import Action, ActionType, action_seq_generator, updateGraph, updateArticPosition
-from pog.graph.shape import ShapeID
+from pog.algorithm.params import CHECK_COLLISION_IK
+import logging
 import copy
 
 
@@ -197,6 +198,7 @@ class PlanningOnGraphProblem(Search_problem):
                     _, names = current.collision_manager.in_collision_internal(
                         return_names=True)
                     is_collision = False
+                    # Accept if placed on parking_place; otherwise transit via parking place if goal placement collides
                     for pair in names:
                         if new_action.optimized == True and str(new_action.add_edge[1]) in set(pair):
                             is_collision = True
@@ -220,6 +222,19 @@ class PlanningOnGraphProblem(Search_problem):
 
                         current = node.current.copy()
                         updateGraph(current, self.goal_graph, [new_action])
+
+                    # If goal placement causes no collision, check action IK
+                    elif new_action.optimized == True and CHECK_COLLISION_IK:
+                        ik_solver = current.CreateIKSolver()         
+                        object_pose = current.transform_matrix_to_list(
+                            current.global_transform[new_action.add_edge[1]])        
+                        ik_result = current.checkIK(object_id=new_action.add_edge[1], 
+                                                    ik_solver=ik_solver, 
+                                                    object_pose=object_pose,
+                                                    get_succ_rate=True)   
+                        if ik_result < 1e-3:
+                            logging.info("%s, dropped due to IK failure.", new_action)
+                            continue
 
             constraints.delConstraint(new_action)
             to_node = SearchNode(new_action_seq, constraints, new_action,

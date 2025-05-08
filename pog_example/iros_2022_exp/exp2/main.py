@@ -17,11 +17,11 @@ if __name__ == '__main__':
     parser.add_argument('-filter',
                         action='store_true',
                         help='Enable to filter redundant actions during searching')
-    parser.add_argument('--max_iter',
+    parser.add_argument('-max_iter',
                         type=int,
                         default=0,
                         help='Maximum number of iterations for the planner')
-    parser.add_argument('--max_opt_time',
+    parser.add_argument('-max_opt_time',
                         type=int,
                         default=200,
                         help='Maximum time (in seconds) for the planner')

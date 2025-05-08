@@ -79,7 +79,8 @@ class Searcher():
                 logging.debug("Expanded {} neighbors.".format(len(neighs)))
                 if not solution_found or path.cost < best_cost - 1:
                     for arc in reversed(list(neighs)):
-                        if pruning and path.end().action and checkRedundant(path.end().action, arc.action, path.initial.end()):
+                        if pruning and path.end().action and checkRedundant(
+                            path.end().action, arc.action, path.initial.end()):
                             continue
                         self.add_to_frontier(PlanningOnGraphPath(path, arc))
         logging.info("No (more) solutions. Total of {} paths expanded.".format(

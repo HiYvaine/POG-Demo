@@ -32,4 +32,4 @@ FITNESS_THRESH = 0.5
 TOURNAMENT_K = 10
 
 # Flag for checking collision-aware IK
-CHECK_COLLISION_IK = False
+CHECK_COLLISION_IK = True

@@ -562,7 +562,7 @@ class Graph():
             for node_id in node_depth:
                 if node_id not in (exclude_object_ids or set()):
                     if node_depth[node_id] == depth:
-                        node_mesh = self.genNodeShape(node_id)
+                        node_mesh = self.genNodeShape(node_id).copy()
                         # transform_pose = [0, 0, 0, 1, 0, 0, 0]
                         transform_pose = self.transform_matrix_to_list(self.global_transform[node_id])
 
@@ -586,7 +586,7 @@ class Graph():
             outfile (str, optional): file path. Defaults to 'out.stl'.
         """
         self.create_scene()
-        self.scene.dump(concatenate=True).export(outfile)
+        self.scene.to_geometry().export(outfile)
 
     def computeGlobalTF(self):
         """Compute transformations from root to all nodes in scene graph 
@@ -649,6 +649,7 @@ class Graph():
 
         # sub_graph = Graph('Subgraph of {} at node {}.'.format(self.name, node_id), fn = fn)
         sub_graph = Graph('subgraph', fn=fn)
+        
         sub_collision_scene = self.collision_scene.copy()
         for key, _ in self.node_dict.items():
             if key not in sub_graph.graph.nodes():
@@ -771,8 +772,8 @@ class Graph():
         ik_config = IKSolverConfig.load_from_robot_config(
             self.robot_cfg,
             world_cfg,
-            rotation_threshold=0.05,
-            position_threshold=0.01,
+            rotation_threshold=0.5,
+            position_threshold=0.1,
             num_seeds=20,
             self_collision_check=True,
             self_collision_opt=True,
