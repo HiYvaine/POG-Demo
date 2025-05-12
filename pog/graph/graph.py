@@ -487,20 +487,20 @@ class Graph():
         plt.close()
 
 
-    def genNodeShape(self, object_id: int):
+    def genNodeShape(self, object_id: int) -> trimesh.Trimesh:
         
         node = self.node_dict[object_id]
-        try: node_shape = node.shape.shape.copy()
+        try: node_shape = node.shape.shape
         except AttributeError as e: 
             raise Exception(f"Object_{object_id} has no shape: {e}")
         
         if node.shape.object_type == shape.ShapeType.ARTIC and node.state: 
             if node.state == ContainmentState.Opened and hasattr(node.shape, 'open_shape'):
-                node_shape = node.shape.open_shape.copy()
+                node_shape = node.shape.open_shape
             elif node.state == ContainmentState.Closed and hasattr(node.shape, 'close_shape'):
-                node_shape = node.shape.close_shape.copy()
+                node_shape = node.shape.close_shape
 
-        return node_shape
+        return node_shape.copy()
 
 
     def create_scene(self):
@@ -520,6 +520,8 @@ class Graph():
                         node_name=key,
                         parent_node_name=self.edge_dict[key].parent_id,
                         transform=self.edge_dict[key].parent_to_child_tf)
+    
+
                     
 
     def create_collision_scene(self):
@@ -535,7 +537,7 @@ class Graph():
                         node_name=str(key),
                         transform=self.global_transform[key])
                 except:
-                    print(key, self.global_transform.keys())
+                    logging.info(f"{key}, {self.global_transform.keys()}")
 
     @staticmethod
     def transform_matrix_to_list(matrix: np.ndarray) -> list:
@@ -586,7 +588,7 @@ class Graph():
             outfile (str, optional): file path. Defaults to 'out.stl'.
         """
         self.create_scene()
-        self.scene.to_geometry().export(outfile)
+        self.scene.export(outfile)
 
     def computeGlobalTF(self):
         """Compute transformations from root to all nodes in scene graph 

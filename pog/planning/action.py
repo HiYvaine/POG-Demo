@@ -119,9 +119,10 @@ def updateArticPosition(current: Graph, action: Action, reverse=False, execute=T
                 if hasattr(node.shape, 'open_swept_shape') and hasattr(node.shape, 'close_swept_shape'):
                     swept_shape = node.shape.open_swept_shape if opened else node.shape.close_swept_shape
                     current.collision_scene.delete_geometry(str(node.id))
-                    current.collision_scene.add_geometry(geometry=swept_shape, 
-                                                        node_name=str(node.id),
-                                                        transform=current.global_transform[node.id].copy())
+                    current.collision_scene.add_geometry(
+                        geometry=swept_shape, 
+                        node_name=str(node.id), 
+                        transform=current.global_transform[node.id].copy())
                     current.collision_manager, _ = trimesh.collision.scene_to_collision(current.collision_scene)            
             
         elif node.shape.shape_type == ShapeID.Drawer:

@@ -84,49 +84,60 @@ class ComplexStorage(Shape):
         board_shape = creation.box(
             extents=[
                 size[0] - WALL_THICKNESS,
-                size[1] - WALL_THICKNESS,
+                size[1] - WALL_THICKNESS * 2.,
                 WALL_THICKNESS,
             ],
-            transform=transform + np.array([
-                [0, 0, 0, 0],
-                [0, 0, 0, WALL_THICKNESS / 2.],
-                [0, 0, 0, 0],
-                [0, 0, 0, 0],
-            ]),
+            transform=transform,
             **kwargs,
         )
                                   
         body_shape: trimesh.Trimesh = trimesh.util.concatenate(outer_shape.difference(inner_shape),board_shape)
-        self.shape = body_shape
-        shape_color = trimesh.visual.random_color()
-        self.shape.visual.face_colors[:] = shape_color
+        body_color = trimesh.visual.random_color()
+        body_shape.visual.face_colors = body_color
+        self.shape = body_shape.copy()
 
         if with_door:
 
             door_transform = transform.copy()
-            door_transform[1, 3] += (size[1] + WALL_THICKNESS) / 2.0
-            door_shape = creation.box(extents=[size[0], WALL_THICKNESS, size[2]],
+            door_transform[1, 3] += (size[1] - WALL_THICKNESS) / 2.
+            door_shape = creation.box(extents=[size[0]-WALL_THICKNESS, WALL_THICKNESS, size[2]-WALL_THICKNESS],
                                     transform=door_transform,
                                     **kwargs)
+            door_color = body_color.copy()
+            door_color[3] = 200
+            door_shape.visual.face_colors = door_color
 
             self.close_shape: trimesh.Trimesh = trimesh.util.concatenate(body_shape, door_shape)
-            self.close_shape.visual.face_colors[:] = shape_color
-
             door_open_shape = door_shape.copy()
+
             if joint_axis == 'z':
                 rotation_center = [size[0]/2, size[1]/2, 0]
                 rotation_axis = [0, 0, 1]
                 end_angle = -joint_dmax
 
-            if joint_axis == 'x':
+            elif joint_axis == 'z-right':
+                rotation_center = [-size[0]/2, size[1]/2, 0]
+                rotation_axis = [0, 0, 1]
+                end_angle = joint_dmax
+
+            elif joint_axis == 'x':
                 rotation_center = [0, size[1]/2, size[2]/2]
                 rotation_axis = [1, 0, 0]
                 end_angle = joint_dmax
 
+            elif joint_axis == 'x-bottom':
+                rotation_center = [0, size[1]/2, -size[2]/2+WALL_THICKNESS/2]
+                rotation_axis = [1, 0, 0]
+                end_angle = -joint_dmax
+            
+            else:
+                raise ValueError(
+                    f"Invalid joint_axis '{joint_axis}'; expected: 'z', 'z-right', 'x', 'x-bottom'."
+                )
+
             combined_transform = rotation_matrix(end_angle, rotation_axis, point=rotation_center)
             door_open_shape.apply_transform(combined_transform)
             self.open_shape: trimesh.Trimesh = trimesh.util.concatenate(body_shape, door_open_shape)
-            self.open_shape.visual.face_colors[:] = shape_color
 
             self.door_swept_shape = compute_door_swept_concatenate(door_shape, rotation_center, rotation_axis, end_angle)
             self.open_swept_shape: trimesh.Trimesh = trimesh.util.concatenate(body_shape, self.door_swept_shape)
@@ -168,13 +179,15 @@ class ComplexStorage(Shape):
             "bb": size[[0, 1]],
             "height": size[2],
         }
+
+        length_x = size[0] - WALL_THICKNESS
+        length_y = size[1] - WALL_THICKNESS * 2.
         inner_params = {
             "containment": True,
-            "shape": sdf.d2.rectangle(size[[0, 1]] - 2 * WALL_THICKNESS),
-            "area":
-            (size[0] - 2 * WALL_THICKNESS) * (size[1] - 2 * WALL_THICKNESS),
-            "bb": size[[0, 1]] - 2 * WALL_THICKNESS,
-            "height": size[2] - 2 * WALL_THICKNESS,
+            "shape": sdf.d2.rectangle([length_x, length_y]),
+            "area": length_x * length_y,
+            "bb": [length_x, length_y],
+            "height": (size[2] - 2 * WALL_THICKNESS) / 2.,
         }
         if storage_type == 'cabinet':
             aff_dicts = self.get_cabinet_affs(inner_params, outer_params)
@@ -214,9 +227,9 @@ class ComplexStorage(Shape):
             "cabinet_inner_bottom",
             "tf":
             self.transform @ np.array((
-                (1, 0, 0, WALL_THICKNESS),
+                (1, 0, 0, 0),
                 (0, 1, 0, 0),
-                (0, 0, 1, -self.size[2] / 2.0 + WALL_THICKNESS),
+                (0, 0, 1, -self.size[2] / 2. + WALL_THICKNESS / 2.),
                 (0, 0, 0, 1),
             )),
             "params":
@@ -226,9 +239,9 @@ class ComplexStorage(Shape):
             "cabinet_inner_middle",
             "tf":
             self.transform @ np.array((
-                (1, 0, 0, WALL_THICKNESS),
+                (1, 0, 0, 0),
                 (0, 1, 0, 0),
-                (0, 0, 1, WALL_THICKNESS / 2.0),
+                (0, 0, 1, WALL_THICKNESS / 2.),
                 (0, 0, 0, 1),
             )),
             "params":

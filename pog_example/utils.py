@@ -42,7 +42,7 @@ def optimize(g=None,
 
     if visualize:
         g.create_scene()
-        vedo.show(g.scene.to_geometry(), axes=1)
+        g.scene.show()
 
     logging.info(checkConstraints([], object_pose_dict, g))
     return g
@@ -82,7 +82,7 @@ def optimize_scene(g=None,
 
     if visualize:
         g.create_scene()
-        vedo.show(g.scene.to_geometry(), axes=1, screensize='auto')
+        g.scene.show()
 
     return g
 

@@ -1,4 +1,7 @@
+import time
 from typing import List
+
+import pyglet
 from pog.graph.edge import Edge
 from pog.graph.graph import Graph
 from pog.graph.params import PairedSurface
@@ -77,10 +80,10 @@ def apply_action_sequence_to_graph(init : Graph, goal : Graph, action_sequence :
     current = init.copy()
     success = True
     idx = 0
-    if visualize:
-        timestamp = datetime.now().strftime("%m%d_%H_%M")
-        screenshot_dir = f"result/screenshot/{timestamp}"
-        os.makedirs(screenshot_dir, exist_ok=True)
+
+    timestamp = datetime.now().strftime("%m%d_%H_%M")
+    screenshot_dir = f"result/screenshot/{timestamp}"
+    os.makedirs(screenshot_dir, exist_ok=True)
     for action in action_sequence:
         if save_step:
             current.toJson(file_dir="result/", file_name="{}.json".format(idx))
@@ -91,15 +94,26 @@ def apply_action_sequence_to_graph(init : Graph, goal : Graph, action_sequence :
         is_collision, names = current.collision_manager.in_collision_internal(return_names=True)
         print(action, current.checkStability(), (is_collision, names))
         success = success and (current.checkStability() and not is_collision)
-        if visualize and action and action.action_type != ActionType.Pick:
+
+        if action and action.action_type == ActionType.Pick: pass
+        else:
             current.create_scene()
-            plt = vedo.Plotter()
-            plt.show(current.scene.to_geometry(), 
-                     zoom="tight", resetcam=True, interactive=True, title="Action_{} : {}".format(idx, action),
-                     screenshot=f"{screenshot_dir}/action_{idx}.png")
-            # to ensure the window title refreshes
-            plt.render()
-            print("Press Esc to close display window and continue...")
+            
+            png_bytes = current.scene.save_image()
+            with open(f"{screenshot_dir}/action_{idx}.png", "wb") as f:
+                f.write(png_bytes)
+            if visualize:
+                current.scene.show()
+
+            '''Better visualization, not recommended for meshes with non-solid coloring'''
+            # if visualize:
+            #     plt = vedo.Plotter()
+            #     plt.show(current.scene.to_geometry(), 
+            #              zoom="tight", resetcam=True, interactive=True, title="Action_{} : {}".format(idx, action),
+            #              screenshot=f"{screenshot_dir}/action_{idx}.png")
+            #     # to ensure the window title refreshes
+            #     plt.render()
+            #     print("Press Esc to close display window and continue...")
         idx += 1
     return current, success
 
