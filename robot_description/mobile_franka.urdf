@@ -65,7 +65,7 @@
   </joint>
 
   <joint name="franka_fixed" type="fixed">
-    <origin xyz="0.0325484 0.0121688 0.0266862" rpy="0. 0. 0."/>
+    <origin xyz="-0.0325484 0 0.0266862" rpy="0. 0. 3.141592653589793"/>
     <parent link="Franka_stand_link"/>
     <child link="panda_link0"/>
   </joint>
