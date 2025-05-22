@@ -27,6 +27,8 @@ PairedSurface = {
     "cabinet_inner_bottom" : "cabinet_outer_bottom",
     "cabinet_inner_middle" : "cabinet_outer_bottom",
     "drawer_inner_bottom" : "drawer_outer_bottom",
+    "table_surface" : "table_stand",
+    "table_stand" : "table_surface"
 }
 
 ContainmentSurface = [

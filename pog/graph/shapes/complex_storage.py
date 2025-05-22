@@ -111,17 +111,17 @@ class ComplexStorage(Shape):
             door_open_shape = door_shape.copy()
 
             if joint_axis == 'z':
-                rotation_center = [size[0]/2, size[1]/2, 0]
+                rotation_center = [size[0]/2, size[1]/2-WALL_THICKNESS/2, 0]
                 rotation_axis = [0, 0, 1]
                 end_angle = -joint_dmax
 
             elif joint_axis == 'z-right':
-                rotation_center = [-size[0]/2, size[1]/2, 0]
+                rotation_center = [-size[0]/2, size[1]/2-WALL_THICKNESS/2, 0]
                 rotation_axis = [0, 0, 1]
                 end_angle = joint_dmax
 
             elif joint_axis == 'x':
-                rotation_center = [0, size[1]/2, size[2]/2]
+                rotation_center = [0, size[1]/2, size[2]/2-WALL_THICKNESS/2]
                 rotation_axis = [1, 0, 0]
                 end_angle = joint_dmax
 
