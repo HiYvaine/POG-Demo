@@ -49,6 +49,7 @@ class ComplexStorage(Shape):
                  transform=np.identity(4),
                  storage_type='cabinet',
                  with_door=True,
+                 with_board=True,
                  joint_axis='x',
                  joint_dmax=np.pi/2,
                  state=0,
@@ -81,17 +82,21 @@ class ComplexStorage(Shape):
             transform=inner_tf,
             **kwargs,
         )
-        board_shape = creation.box(
-            extents=[
-                size[0] - WALL_THICKNESS,
-                size[1] - WALL_THICKNESS * 2.,
-                WALL_THICKNESS,
-            ],
-            transform=transform,
-            **kwargs,
-        )
-                                  
-        body_shape: trimesh.Trimesh = trimesh.util.concatenate(outer_shape.difference(inner_shape),board_shape)
+        body_shape: trimesh.Trimesh = outer_shape.difference(inner_shape)
+
+        self.with_board = with_board
+        if self.with_board:
+            board_shape = creation.box(
+                extents=[
+                    size[0] - WALL_THICKNESS,
+                    size[1] - WALL_THICKNESS * 2.,
+                    WALL_THICKNESS,
+                ],
+                transform=transform,
+                **kwargs,
+            )                         
+            body_shape: trimesh.Trimesh = trimesh.util.concatenate(body_shape, board_shape)
+
         body_color = trimesh.visual.random_color()
         body_shape.visual.face_colors = body_color
         self.shape = body_shape.copy()
@@ -168,6 +173,8 @@ class ComplexStorage(Shape):
             params["joint_dmax"] = n["joint_dmax"]
         if "state" in n:
             params["state"] = n["state"]
+        if "with_board" in n:
+            params["with_board"] = n["with_board"]
 
         return cls(**params)
 
@@ -183,7 +190,7 @@ class ComplexStorage(Shape):
         length_x = size[0] - WALL_THICKNESS
         length_y = size[1] - WALL_THICKNESS * 2.
         inner_params = {
-            "containment": True,
+            "containment": self.with_door,
             "shape": sdf.d2.rectangle([length_x, length_y]),
             "area": length_x * length_y,
             "bb": [length_x, length_y],
@@ -198,7 +205,7 @@ class ComplexStorage(Shape):
                                **aff["params"]))
 
     def get_cabinet_affs(self, inner_params, outer_params):
-        return [{
+        cabinet_affs = [{
             "name":
             'cabinet_outer_top',
             "tf":
@@ -234,7 +241,9 @@ class ComplexStorage(Shape):
             )),
             "params":
             inner_params,
-        }, {
+        }]
+        if self.with_board:
+            cabinet_affs.append({
             "name":
             "cabinet_inner_middle",
             "tf":
@@ -246,7 +255,8 @@ class ComplexStorage(Shape):
             )),
             "params":
             inner_params,
-        }]
+        })
+        return cabinet_affs
 
     def create_bullet_shapes(self, global_transform):
         visual_shapes = []

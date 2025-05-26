@@ -17,6 +17,8 @@ import networkx as nx
 from collections import deque
 import os
 from datetime import datetime
+from numpy import pi as PI
+from pog.algorithm.params import CHECK_COLLISION_IK
 
 def operation_picknplace(node, source_object, target_object): # for foward astar search
     if not node.node_dict[source_object].accessible:
@@ -76,17 +78,21 @@ def path_to_action_sequence(path : PlanningOnGraphPath, pruning=False):
     # TODO: remove first None element
     return deque(action_seq)
 
-def apply_action_sequence_to_graph(init : Graph, goal : Graph, action_sequence : List[Action], visualize=False, save_step=False):
+def apply_action_sequence_to_graph(init : Graph, goal : Graph, action_sequence : List[Action], visualize=False, save_step=True):
     current = init.copy()
     success = True
     idx = 0
 
     timestamp = datetime.now().strftime("%m%d_%H_%M")
     screenshot_dir = f"result/screenshot/{timestamp}"
+    complete_dir = screenshot_dir + ("_withIK" if CHECK_COLLISION_IK else "_noIK")
+    screenshot_dir = complete_dir + "_wip"
     os.makedirs(screenshot_dir, exist_ok=True)
+
     for action in action_sequence:
         if save_step:
-            current.toJson(file_dir="result/", file_name="{}.json".format(idx))
+            # TODO: fix file_path for Imported and customed attributes for Articulated
+            current.toJson(file_dir=f"{screenshot_dir}/json", file_name=f"{idx}.json", init_json=init.json_path)
         if action and action.reverse:
             updateGraph(current, init, [action], optimize=True)
         else:
@@ -98,14 +104,16 @@ def apply_action_sequence_to_graph(init : Graph, goal : Graph, action_sequence :
         if action and action.action_type == ActionType.Pick: pass
         else:
             current.create_scene()
+            current.scene.set_camera(angles=(PI/3, 0, -PI/2), distance=3.5)
+            scene_name = f"{screenshot_dir}/action_{idx}"
             
             png_bytes = current.scene.save_image()
-            with open(f"{screenshot_dir}/action_{idx}.png", "wb") as f:
+            with open(f"{scene_name}.png", "wb") as f:
                 f.write(png_bytes)
             if visualize:
                 current.scene.show()
 
-            '''Better visualization, not recommended for meshes with non-solid coloring'''
+            '''Better visualization, but not recommended for meshes with non-solid coloring'''
             # if visualize:
             #     plt = vedo.Plotter()
             #     plt.show(current.scene.to_geometry(), 
@@ -115,6 +123,7 @@ def apply_action_sequence_to_graph(init : Graph, goal : Graph, action_sequence :
             #     plt.render()
             #     print("Press Esc to close display window and continue...")
         idx += 1
+    os.rename(screenshot_dir, complete_dir)
     return current, success
 
 def checkRedundant(prev: Action, curr: Action, node: SearchNode):

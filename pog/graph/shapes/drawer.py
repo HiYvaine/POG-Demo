@@ -21,6 +21,7 @@ class Drawer(Shape):
                  transform=np.identity(4),
                  storage_type='drawer',
                  joint_dmax=0.45,
+                 locked=True,
                  state=0,
                  **kwargs):
         super().__init__(shape_type)
@@ -29,15 +30,19 @@ class Drawer(Shape):
         size = np.array(size)
         self.size = size
         self.transform = transform
-        self.joint_axis = 'y'
 
-        if   state == 0: self.state = ContainmentState.Closed
-        elif state == 1: self.state = ContainmentState.Opened
-        else: raise Exception('Invalid state of Drawer')
+        self.locked = locked
 
-        self.joint_dmax = joint_dmax
+        if self.locked:
+            self.object_type = ShapeType.RIGID
+        else:
+            self.object_type = ShapeType.ARTIC
+            if   state == 0: self.state = ContainmentState.Closed
+            elif state == 1: self.state = ContainmentState.Opened
+            else: raise Exception('Invalid state of Drawer')
+            self.joint_axis = 'y'
+            self.joint_dmax = joint_dmax
 
-        self.object_type = ShapeType.ARTIC
         outer_shape = creation.box(size, transform, **kwargs)
         inner_tf = transform - np.array([
             [0, 0, 0, 0],
@@ -88,6 +93,8 @@ class Drawer(Shape):
             params["joint_dmax"] = n["joint_dmax"]
         if "state" in n:
             params["state"] = n["state"]
+        if "locked" in n:
+            params["locked"] = n["locked"]
 
         return cls(**params)
 
@@ -100,7 +107,7 @@ class Drawer(Shape):
             "height": size[2],
         }
         inner_params = {
-            "containment": True,
+            "containment": not self.locked,
             "shape": sdf.d2.rectangle(size[[0, 1]] - 2 * WALL_THICKNESS),
             "area":
             (size[0] - 2 * WALL_THICKNESS) * (size[1] - 2 * WALL_THICKNESS),

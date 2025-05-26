@@ -67,6 +67,7 @@ class Graph():
         elif file_dir is not None and file_name is not None:
             logging.info('Loading scene {} from file {}'.format(
                 self.name, os.path.join(file_dir, file_name)))
+            self.json_path = os.path.join(file_dir, file_name)
             self.node_dict = {}
             self.edge_dict = {}
             with open(os.path.join(file_dir, file_name)) as json_file:
@@ -270,7 +271,53 @@ class Graph():
                 self.graph.add_edge(parent, child, edge=self.edge_dict[child])
                 self.robot.remove_node(child)
 
-    def toJson(self, file_dir: str = None, file_name=None):
+    def toJson(self, file_dir: str = None, file_name = None, init_json: str = None):
+        os.makedirs(file_dir, exist_ok=True)
+        nodes = []
+        edges = []
+
+        try:
+            with open(init_json, 'r') as json_file:
+                init_data = json.load(json_file)
+            for node in init_data['nodes']:
+                if node['id'] in self.node_dict.keys():
+                    if hasattr(self.node_dict[node['id']], 'state'):
+                        node['state'] = 1 \
+                            if self.node_dict[node['id']].state == ContainmentState.Opened else 0
+                    nodes.append(node)
+        except:
+            logging.warning(f"Initial JSON file {init_json} not found. Using toJsonLegacy().")
+            self.toJsonLegacy(file_dir, file_name)
+            return
+
+        for _, edge in self.edge_dict.items():
+            temp_edge = {}
+            temp_edge['parent'] = edge.parent_id
+            temp_edge['child'] = edge.child_id
+            temp_edge['relations'] = {}
+            for key, value in edge.relations.items():
+                temp_relation = {}
+                temp_relation['parent'] = getattr(value['parent'], 'name', '')
+                temp_relation['child'] = getattr(value['child'], 'name', '')
+                try:
+                    temp_relation['dof'] = value['dof']
+                    temp_relation['pose'] = list(value['pose'])
+                except KeyError:
+                    pass
+                temp_edge['relations'][key.name] = temp_relation
+            edges.append(temp_edge)
+
+        with open(os.path.join(file_dir, file_name), 'w') as outfile:
+            logging.info('Saving scene {} to file {}'.format(
+                self.name, os.path.join(file_dir, file_name)))
+            json.dump({
+                'nodes': nodes,
+                'edges': edges,
+                'root': self.root
+            }, outfile)
+
+
+    def toJsonLegacy(self, file_dir: str = None, file_name=None):
         os.makedirs(file_dir, exist_ok=True)
         os.makedirs(file_dir + '/meshes', exist_ok=True)
 
@@ -286,10 +333,10 @@ class Graph():
             temp_node['size'] = getattr(node.shape, 'size',
                                         np.array([])).tolist()
             temp_node['height'] = getattr(node.shape, 'height', -1.)
-            # TODO: add artic attributes
             if node.shape.shape_type == shape.ShapeID.Imported:
                 try:
                     temp_node['file_path'] = node.shape.mesh_dir
+                    print(node.shape.mesh_dir)
                 except:
                     node.shape.shape.export(file_dir + '/meshes/' +
                                             str(node_id) + '.stl')

@@ -507,7 +507,7 @@ class Imported(Shape):
         super().__init__(shape_type)
 
         if file_path is not None:
-            self.shape = trimesh.load(file_path, valudate=True)
+            self.shape = trimesh.load(file_path, validate=True)
             self.shape.visual.face_colors[:] = trimesh.visual.random_color()
             self.mesh_dir = file_path
         else:
