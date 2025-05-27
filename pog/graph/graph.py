@@ -14,7 +14,7 @@ from pog.graph import shape
 from pog.graph.edge import Edge
 from pog.graph.node import ContainmentState, Node
 from pog.graph.params import FRICTION_ANGLE_THRESH, PairedSurface, ROBOT_YML, GRASP_POSE_DATASET
-from pog.graph.shapes import Wardrobe, ComplexStorage, Cone, Drawer, Table
+from pog.graph.shapes import Wardrobe, ComplexStorage, Cone, Drawer, Table, Computer
 from pog.graph.utils import match
 from curobo.geom.types import Mesh
 from scipy.spatial.transform import Rotation
@@ -94,6 +94,8 @@ class Graph():
                         temp_node = Drawer.from_saved(n)
                     elif n['shape'] ==shape.ShapeID.Table.value:
                         temp_node = Table.from_saved(n)
+                    elif n['shape'] ==shape.ShapeID.Computer.value:
+                        temp_node = Computer.from_saved(n)
                     else:
                         raise Exception('Unsupported shape type: {}'.format(
                             shape.ShapeID(n['shape'])))

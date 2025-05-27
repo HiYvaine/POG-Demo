@@ -27,9 +27,10 @@ class Table(Shape):
         self.size = np.array(size)
         self.with_shelf = with_shelf
         self.shelf_size = np.array(shelf_size)
-
+        # TODO: transform is not applied to shape
         self.shape = self.create_table(size=self.size, with_shelf=self.with_shelf, shelf_size=self.shelf_size)
         self.shape.visual.face_colors[:] = trimesh.visual.random_color()
+        self.shape.apply_transform(transform)
         self.transform = transform
         self.volume = self.size[0] * self.size[1] * self.size[2]
         self.mass = self.volume

@@ -12,30 +12,33 @@ from pog.graph.params import BULLET_GROUND_OFFSET, WALL_THICKNESS
 from pog.graph.shape import Affordance, Shape, ShapeID, ShapeType
 from trimesh.transformations import rotation_matrix
 from scipy.spatial import ConvexHull
+from trimesh.transformations import translation_matrix
 
 # Don't use — in_collision_internal can't detect full containment.
-def compute_door_swept_convex_hull(door_shape, rotation_center, rotation_axis, swept_angle, interpolations=3):
-
+def compute_door_swept_convex_hull(door_shape, rotation_center, rotation_axis, swept_angle, transform=None, interpolations=3):
+# Apply [transform] if doo_shape has been transformed in global but rotation params are in local.
     vertices = []
     angles = np.linspace(0, swept_angle, interpolations+2)
+    transform = transform if transform is not None else np.identity(4)
     for angle in angles:
         interp_door = door_shape.copy()
-        combined_transform = rotation_matrix(angle, rotation_axis, point=rotation_center)
-        interp_door.apply_transform(combined_transform)
+        local_transform = rotation_matrix(angle, rotation_axis, point=rotation_center)
+        interp_door.apply_transform(transform @ local_transform)
         vertices.append(interp_door.vertices)
     vertices = np.vstack(vertices)
     hull = ConvexHull(vertices)
     swept_mesh = trimesh.Trimesh(vertices=vertices, faces=hull.simplices)
     return swept_mesh
 
-def compute_door_swept_concatenate(door_shape, rotation_center, rotation_axis, swept_angle, interpolations=6):
-
+def compute_door_swept_concatenate(door_shape, rotation_center, rotation_axis, swept_angle, transform=None, interpolations=6):
+# Apply [transform] if doo_shape has been transformed in global but rotation params are in local.
     interp_doors = []
     angles = np.linspace(0, swept_angle, interpolations+2)
+    transform = transform if transform is not None else np.identity(4)
     for angle in angles:
         interp_door = door_shape.copy()
-        combined_transform = rotation_matrix(angle, rotation_axis, point=rotation_center)
-        interp_door.apply_transform(combined_transform)
+        local_transform = rotation_matrix(angle, rotation_axis, point=rotation_center)
+        interp_door.apply_transform(transform @ local_transform)
         interp_doors.append(interp_door)
     swept_mesh: trimesh.Trimesh = trimesh.util.concatenate(interp_doors)
     return swept_mesh
@@ -69,30 +72,19 @@ class ComplexStorage(Shape):
         elif state == 1: self.state = ContainmentState.Opened
         else: raise Exception('Invalid state of ComplexStorage')
         
-        outer_shape = creation.box(size, transform, **kwargs)
-        inner_tf = transform + np.array([
-            [0, 0, 0, 0],
-            [0, 0, 0, WALL_THICKNESS],
-            [0, 0, 0, 0],
-            [0, 0, 0, 0],
-        ])
-        # The ComplexStorage opens by default along the positive Y-axis.
+        # no transform, the ComplexStorage opens by default along the positive Y-axis. 
+        outer_shape = creation.box(size, np.identity(4), **kwargs)
         inner_shape = creation.box(
-            extents=size - np.array(WALL_THICKNESS),
-            transform=inner_tf,
+            extents=[size[0]-WALL_THICKNESS*2, size[1]-WALL_THICKNESS, size[2]-WALL_THICKNESS*2],
+            transform=translation_matrix([0, WALL_THICKNESS/2., 0]),
             **kwargs,
         )
         body_shape: trimesh.Trimesh = outer_shape.difference(inner_shape)
-
         self.with_board = with_board
-        if self.with_board:
+        if self.with_board:         
             board_shape = creation.box(
-                extents=[
-                    size[0] - WALL_THICKNESS,
-                    size[1] - WALL_THICKNESS * 2.,
-                    WALL_THICKNESS,
-                ],
-                transform=transform,
+                extents=[size[0]-WALL_THICKNESS*2, size[1]-WALL_THICKNESS*2, WALL_THICKNESS],
+                transform=np.identity(4),
                 **kwargs,
             )                         
             body_shape: trimesh.Trimesh = trimesh.util.concatenate(body_shape, board_shape)
@@ -100,38 +92,39 @@ class ComplexStorage(Shape):
         body_color = trimesh.visual.random_color()
         body_shape.visual.face_colors = body_color
         self.shape = body_shape.copy()
+        self.shape.apply_transform(transform)
 
         if with_door:
-
-            door_transform = transform.copy()
-            door_transform[1, 3] += (size[1] - WALL_THICKNESS) / 2.
-            door_shape = creation.box(extents=[size[0]-WALL_THICKNESS, WALL_THICKNESS, size[2]-WALL_THICKNESS],
-                                    transform=door_transform,
-                                    **kwargs)
+            door_shape = creation.box(
+                extents=[size[0]-WALL_THICKNESS*2, WALL_THICKNESS, size[2]-WALL_THICKNESS*2],
+                transform=translation_matrix([0, (size[1]-WALL_THICKNESS)/2., 0]),
+                **kwargs
+                )
             door_color = body_color.copy()
             door_color[3] = 200
             door_shape.visual.face_colors = door_color
 
             self.close_shape: trimesh.Trimesh = trimesh.util.concatenate(body_shape, door_shape)
+            self.close_shape.apply_transform(transform)
             door_open_shape = door_shape.copy()
 
             if joint_axis == 'z':
-                rotation_center = [size[0]/2, size[1]/2-WALL_THICKNESS/2, 0]
+                rotation_center = [size[0]/2-WALL_THICKNESS, size[1]/2, 0]
                 rotation_axis = [0, 0, 1]
                 end_angle = -joint_dmax
 
             elif joint_axis == 'z-right':
-                rotation_center = [-size[0]/2, size[1]/2-WALL_THICKNESS/2, 0]
+                rotation_center = [-size[0]/2+WALL_THICKNESS, size[1]/2, 0]
                 rotation_axis = [0, 0, 1]
                 end_angle = joint_dmax
 
             elif joint_axis == 'x':
-                rotation_center = [0, size[1]/2, size[2]/2-WALL_THICKNESS/2]
+                rotation_center = [0, size[1]/2, size[2]/2-WALL_THICKNESS]
                 rotation_axis = [1, 0, 0]
                 end_angle = joint_dmax
 
             elif joint_axis == 'x-bottom':
-                rotation_center = [0, size[1]/2, -size[2]/2+WALL_THICKNESS/2]
+                rotation_center = [0, size[1]/2, -size[2]/2+WALL_THICKNESS]
                 rotation_axis = [1, 0, 0]
                 end_angle = -joint_dmax
             
@@ -140,12 +133,13 @@ class ComplexStorage(Shape):
                     f"Invalid joint_axis '{joint_axis}'; expected: 'z', 'z-right', 'x', 'x-bottom'."
                 )
 
-            combined_transform = rotation_matrix(end_angle, rotation_axis, point=rotation_center)
-            door_open_shape.apply_transform(combined_transform)
+            local_transform = rotation_matrix(end_angle, rotation_axis, point=rotation_center)
+            door_open_shape.apply_transform(local_transform)
             self.open_shape: trimesh.Trimesh = trimesh.util.concatenate(body_shape, door_open_shape)
-
-            self.door_swept_shape = compute_door_swept_concatenate(door_shape, rotation_center, rotation_axis, end_angle)
-            self.open_swept_shape: trimesh.Trimesh = trimesh.util.concatenate(body_shape, self.door_swept_shape)
+            self.open_shape.apply_transform(transform)
+            door_swept_shape = compute_door_swept_concatenate(door_shape, rotation_center, rotation_axis, end_angle)
+            self.open_swept_shape: trimesh.Trimesh = trimesh.util.concatenate(body_shape, door_swept_shape)
+            self.open_swept_shape.apply_transform(transform)
             self.close_swept_shape = self.open_swept_shape.copy()
 
         self.transform = transform
@@ -187,14 +181,18 @@ class ComplexStorage(Shape):
             "height": size[2],
         }
 
-        length_x = size[0] - WALL_THICKNESS
+        length_x = size[0] - WALL_THICKNESS * 2.
         length_y = size[1] - WALL_THICKNESS * 2.
+        height = size[2] - WALL_THICKNESS * 2.
+        if self.with_board:
+            height = (size[2] - WALL_THICKNESS * 3.) / 2.
+
         inner_params = {
             "containment": self.with_door,
             "shape": sdf.d2.rectangle([length_x, length_y]),
             "area": length_x * length_y,
             "bb": [length_x, length_y],
-            "height": (size[2] - 2 * WALL_THICKNESS) / 2.,
+            "height": height,
         }
         if storage_type == 'cabinet':
             aff_dicts = self.get_cabinet_affs(inner_params, outer_params)
@@ -206,55 +204,29 @@ class ComplexStorage(Shape):
 
     def get_cabinet_affs(self, inner_params, outer_params):
         cabinet_affs = [{
-            "name":
-            'cabinet_outer_top',
-            "tf":
-            self.transform @ np.array((
-                (1, 0, 0, 0),
-                (0, 1, 0, 0),
-                (0, 0, 1, self.size[2] / 2.0),
-                (0, 0, 0, 1),
-            )),
-            "params":
-            outer_params,
-        }, {
-            "name":
-            "cabinet_outer_bottom",
-            "tf":
-            self.transform @ np.array((
+            "name": 'cabinet_outer_top',
+            "tf": self.transform @ translation_matrix([0, 0, self.size[2]/2.0]),
+            "params": outer_params,
+        },{
+            "name": "cabinet_outer_bottom",
+            "tf": self.transform @ np.array((
                 (1, 0, 0, 0),
                 (0, -1, 0, 0),
-                (0, 0, -1, -self.size[2] / 2.0),
+                (0, 0, -1, -self.size[2]/2.0),
                 (0, 0, 0, 1),
             )),
-            "params":
-            outer_params,
-        }, {
-            "name":
-            "cabinet_inner_bottom",
-            "tf":
-            self.transform @ np.array((
-                (1, 0, 0, 0),
-                (0, 1, 0, 0),
-                (0, 0, 1, -self.size[2] / 2. + WALL_THICKNESS / 2.),
-                (0, 0, 0, 1),
-            )),
-            "params":
-            inner_params,
-        }]
+            "params": outer_params,
+        },{
+            "name": "cabinet_inner_bottom",
+            "tf": self.transform @ translation_matrix([0, 0, -self.size[2]/2.0+WALL_THICKNESS]),
+            "params": inner_params,
+            }]
         if self.with_board:
             cabinet_affs.append({
             "name":
             "cabinet_inner_middle",
-            "tf":
-            self.transform @ np.array((
-                (1, 0, 0, 0),
-                (0, 1, 0, 0),
-                (0, 0, 1, WALL_THICKNESS / 2.),
-                (0, 0, 0, 1),
-            )),
-            "params":
-            inner_params,
+            "tf": self.transform @ translation_matrix([0, 0, WALL_THICKNESS/2.0]),
+            "params": inner_params,
         })
         return cabinet_affs
 

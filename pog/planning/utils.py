@@ -91,7 +91,6 @@ def apply_action_sequence_to_graph(init : Graph, goal : Graph, action_sequence :
 
     for action in action_sequence:
         if save_step:
-            # TODO: fix file_path for Imported and customed attributes for Articulated
             current.toJson(file_dir=f"{screenshot_dir}/json", file_name=f"{idx}.json", init_json=init.json_path)
         if action and action.reverse:
             updateGraph(current, init, [action], optimize=True)

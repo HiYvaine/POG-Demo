@@ -19,6 +19,7 @@ class ShapeID(Enum):
     Storage = 4
     Imported = 5
     Table = 6
+    Computer = 7
     Wardrobe = 11
     ComplexStorage = 12
     Drawer = 13
