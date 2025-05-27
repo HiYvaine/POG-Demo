@@ -266,6 +266,10 @@ object_5:
     - position: [0.0, 0.0, 0.15]
       orientation: [0.0, -0.5, -0.866, 0.0]
 
+object_1: 
+    - position: [0, 0, 0]
+      orientation: [0.0, -1.0, 0.0, 0.0]
+
 object_9:
 
     - position: [0.1, 0.0, -0.03]

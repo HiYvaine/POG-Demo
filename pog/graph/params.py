@@ -27,15 +27,16 @@ PairedSurface = {
     "cabinet_inner_bottom" : "cabinet_outer_bottom",
     "cabinet_inner_middle" : "cabinet_outer_bottom",
     "drawer_inner_bottom" : "drawer_outer_bottom",
-    "table_surface" : "table_stand",
-    "table_stand" : "table_surface",
+    "table_support" : "table_stand",
+    "table_stand" : "table_support",
     "keyboard_support": "keyboard_stand",
-    "keyboard_stand": "keyboard_support"
+    "keyboard_stand": "keyboard_support",
+    "table_shelf_support": "table_stand",
 }
 
 ContainmentSurface = [
     'shelf_aff_pz_bottom', 'cabinet_inner_bottom', 'cabinet_inner_middle',
-    'drawer_inner_bottom'
+    'drawer_inner_bottom', 'table_shelf_support'
 ]
 
 WALL_THICKNESS = 0.02

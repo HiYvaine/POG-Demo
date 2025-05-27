@@ -15,7 +15,7 @@ class Computer(Shape):
                  shape_type=ShapeID.Computer,
                  size=np.array([0.32, 0.22, 0.015]),
                  transform=np.identity(4),
-                 state = 1,
+                 state = 0,
                  joint_dmax=PI/1.8,
                  **kwargs) -> None:
 
@@ -76,7 +76,16 @@ class Computer(Shape):
 
     @classmethod
     def from_saved(cls, n: dict):
-        return cls(size=n['size'], transform=np.array(n['transform']))
+        params = {
+            "size": n["size"],
+            "transform": np.array(n["transform"]),
+        }
+        attr_names = ["joint_dmax", "state"]
+        for attr in attr_names:
+            if attr in n:
+                params[attr] = n[attr]
+
+        return cls(**params)
 
     def create_aff(self):
         keyboard_height = self.size[2] * keyboard_height_ratio

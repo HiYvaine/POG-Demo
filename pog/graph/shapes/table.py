@@ -2,6 +2,7 @@ import numpy as np
 import sdf.d2
 import trimesh
 from pog.graph.shape import Affordance, Shape, ShapeID
+from trimesh.transformations import translation_matrix
 
 Tabletop_Thickness = 0.02
 Tableleg_Thickness = 0.03
@@ -27,7 +28,6 @@ class Table(Shape):
         self.size = np.array(size)
         self.with_shelf = with_shelf
         self.shelf_size = np.array(shelf_size)
-        # TODO: transform is not applied to shape
         self.shape = self.create_table(size=self.size, with_shelf=self.with_shelf, shelf_size=self.shelf_size)
         self.shape.visual.face_colors[:] = trimesh.visual.random_color()
         self.shape.apply_transform(transform)
@@ -40,7 +40,17 @@ class Table(Shape):
 
     @classmethod
     def from_saved(cls, n: dict):
-        return cls(size=n['size'], transform=np.array(n['transform']))
+        params = {
+            "size": n["size"],
+            "transform": np.array(n["transform"]),
+        }
+
+        if "with_shelf" in n:
+            params["with_shelf"] = n["with_shelf"]
+        if "shelf_size" in n:
+            params["shelf_size"] = np.array(n["shelf_size"])
+
+        return cls(**params)
 
     @property
     def export_file_name(self):
@@ -48,10 +58,8 @@ class Table(Shape):
             self.size[0], self.size[1], self.size[2])
 
     def create_aff(self):
-        tf = self.transform @ np.array(
-            ((1, 0, 0, 0), (0, 1, 0, 0), (0, 0, 1, self.size[2] / 2.0),
-             (0, 0, 0, 1)))
-        aff_pz = Affordance(name='table_surface', transform=tf, containment = False,\
+        tf = self.transform @ translation_matrix([0, 0, self.size[2]/2.0])
+        aff_pz = Affordance(name='table_support', transform=tf, containment = False,\
             shape = sdf.d2.rectangle(self.size[[0,1]]), area = self.size[0]*self.size[1], bb = self.size[[0,1]], height = self.size[2])
 
 
@@ -59,15 +67,30 @@ class Table(Shape):
             ((1, 0, 0, 0), (0, -1, 0, 0), (0, 0, -1, -self.size[2] / 2.0),
              (0, 0, 0, 1)))
         aff_nz = Affordance(name='table_stand', transform=tf, containment = False,\
-            shape = sdf.d2.rectangle(self.size[[0,1]]), area = self.size[0]*self.size[1], bb = self.size[[0,1]], height = self.size[2])
+            shape = sdf.d2.rectangle(self.size[[0,1]]), area = self.size[0]*self.size[1], bb = self.size[[0,1]], 
+            height = self.size[2]-self.shelf_size[2])
 
         self.add_aff(aff_pz)
         self.add_aff(aff_nz)
 
+        if self.with_shelf:
+            length_x = self.shelf_size[0]-2*Tabletop_Thickness
+            length_y = self.shelf_size[1]
+            tf = self.transform @ translation_matrix([0, 0, self.size[2]/2.0-self.shelf_size[2]])
+            aff_shelf = Affordance(
+                name='table_shelf_support', 
+                transform=tf, 
+                containment = True,
+                shape = sdf.d2.rectangle([length_x, length_y]), 
+                area = length_x * length_y, 
+                bb = [length_x, length_y], 
+                height = self.shelf_size[2]-Tabletop_Thickness)
+            self.add_aff(aff_shelf)
+
 
     @property
     def default_affordance_name(self) -> str:
-        return 'table_surface'
+        return 'table_support'
     
     @staticmethod
     def create_table(size, with_shelf=False, shelf_size=None):
@@ -120,21 +143,21 @@ class Table(Shape):
             shelf_panels = [
                 trimesh.creation.box(
                     extents=[Tabletop_Thickness, shelf_size[1], shelf_size[2]],
-                    transform=trimesh.transformations.translation_matrix(
+                    transform=translation_matrix(
                         [shelf_size[0] / 2 - Tabletop_Thickness / 2, 0,
                         size[2] / 2 - Tabletop_Thickness - shelf_size[2] / 2]
                     )
                 ),
                 trimesh.creation.box(
                     extents=[Tabletop_Thickness, shelf_size[1], shelf_size[2]],
-                    transform=trimesh.transformations.translation_matrix(
+                    transform=translation_matrix(
                         [-shelf_size[0] / 2 + Tabletop_Thickness / 2, 0,
                         size[2] / 2 - Tabletop_Thickness - shelf_size[2] / 2]
                     )
                 ),
                 trimesh.creation.box(
                     extents=[shelf_size[0], shelf_size[1], Tabletop_Thickness],
-                    transform=trimesh.transformations.translation_matrix(
+                    transform=translation_matrix(
                         [0, 0, size[2] / 2 - Tabletop_Thickness - shelf_size[2] + Tabletop_Thickness / 2]
                     )
                 )
@@ -142,9 +165,8 @@ class Table(Shape):
             table_shelf: trimesh.Trimesh = trimesh.util.concatenate(shelf_panels)
 
             shelf_transform = trimesh.transformations.translation_matrix(
-                [0, size[1] / 2 - shelf_size[1] / 2, 0])
+                [0, size[1] / 2 - shelf_size[1] / 2 - Tableleg_Inset, 0])
             table_shelf.apply_transform(shelf_transform)
             table = trimesh.util.concatenate(table, table_shelf)
-            table.show()
 
         return table

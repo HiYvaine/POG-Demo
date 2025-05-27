@@ -159,16 +159,10 @@ class ComplexStorage(Shape):
             "size": n["size"],
             "transform": np.array(n["transform"]),
         }
-        if "with_door" in n:
-            params["with_door"] = n["with_door"]
-        if "joint_axis" in n:
-            params["joint_axis"] = n["joint_axis"]
-        if "joint_dmax" in n:
-            params["joint_dmax"] = n["joint_dmax"]
-        if "state" in n:
-            params["state"] = n["state"]
-        if "with_board" in n:
-            params["with_board"] = n["with_board"]
+        attr_names = ["storage_type", "joint_axis", "joint_dmax", "state", "with_board"]
+        for attr in attr_names:
+            if attr in n:
+                params[attr] = n[attr]
 
         return cls(**params)
 
